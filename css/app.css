@@ -1,8 +1,6 @@
-body {
-}
+body {}
 
-.app {
-}
+.app {}
 
 .app #leafletMap {
     position: absolute;
