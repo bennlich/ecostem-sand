@@ -1,0 +1,3 @@
+[submodule "st-api"]
+	path = st-api
+	url = git@github.com:mariusnita/st-api
