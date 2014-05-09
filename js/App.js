@@ -38,10 +38,7 @@ class Application extends Evented {
 
         this.animator = new Animator(this.modelPool);
 
-        var sampler = new RemoteBBoxSampler(
-            document.createElement('canvas'),
-            'http://node.redfish.com/cgi-bin/elevation.py?bbox={s},{w},{n},{e}&res={width},{height}'
-        );
+        var sampler = new RemoteBBoxSampler();
 
         sampler.loadRemoteData(elevModel.dataModel.geometry, () => {
             elevModel.dataModel.loadElevation(sampler);
