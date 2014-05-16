@@ -74,7 +74,7 @@ export class Correspondence {
         var ctx = canvas.getContext('2d');
 
         var patchWidth = canvas.width / this.dataSize;
-        var patchHeight = canvas.width / this.dataSize;
+        var patchHeight = canvas.height / this.dataSize;
 
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -131,31 +131,31 @@ class StripeScan {
         this.screenCtx = null;
 
         /* the canvas in which we store the correspondence */
-        this.canvas = null;
-        this.canvasCtx = null;
+        this.outputCanvas = null;
+        this.outputCtx = null;
 
         /* temporary/working space canvas to store camera frame pixels */
-        this.tmpCanvas = null;
-        this.tmpCtx = null;
+        this.cameraCanvas = null;
+        this.cameraCtx = null;
     }
 
-    makeCanvas(width, height) {
-        var canvas = document.createElement('canvas');
-        var tmpCanvas = document.createElement('canvas');
+    makeCanvases(width, height) {
+        var outputCanvas = document.createElement('canvas');
+        var cameraCanvas = document.createElement('canvas');
 
-        canvas.width = tmpCanvas.width = width;
-        canvas.height = tmpCanvas.height = height;
+        outputCanvas.width = cameraCanvas.width = width;
+        outputCanvas.height = cameraCanvas.height = height;
 
-        this.canvas = canvas;
-        this.canvasCtx = canvas.getContext('2d');
+        this.outputCanvas = outputCanvas;
+        this.outputCtx = outputCanvas.getContext('2d');
 
         /* It's important that we start with all r/g/b values set to 0
            and all opacity values set to 255. */
-        this.canvasCtx.fillStyle = 'black';
-        this.canvasCtx.fillRect(0, 0, width, height);
+        this.outputCtx.fillStyle = 'black';
+        this.outputCtx.fillRect(0, 0, width, height);
 
-        this.tmpCanvas = tmpCanvas;
-        this.tmpCtx = tmpCanvas.getContext('2d');
+        this.cameraCanvas = cameraCanvas;
+        this.cameraCtx = cameraCanvas.getContext('2d');
     }
 
     scan(canvas, doneCallback) {
@@ -164,7 +164,7 @@ class StripeScan {
 
         /* Grab an image just to get dimensions */
         this.grabCameraImage((img) => {
-            this.makeCanvas(img.width, img.height);
+            this.makeCanvases(img.width, img.height);
             /* numSteps is how many level of stripes to flash. numSteps == 7
                would mean the finest level will display 2^7 = 128 stripes, giving
                a resolution of 128 x 128 for the correspondence raster. */
@@ -174,8 +174,7 @@ class StripeScan {
                 this.whiteFrame(() => {
                     this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
                         this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
-                            //this.screenCtx.drawImage(this.canvas, 0, 0);
-                            this.invoke(doneCallback, this.canvas);
+                            this.invoke(doneCallback, this.outputCanvas);
                         });
                     });
                 });
@@ -189,11 +188,14 @@ class StripeScan {
         }
     }
 
+    /* Projects an all-white frame and uses the frame to rule out all the pixels
+       that are not bright enough as being outside the projection area. */
     whiteFrame(doneCallback) {
         this.screenCtx.fillStyle = 'white';
         this.screenCtx.fillRect(0, 0, this.screenCanvas.width, this.screenCanvas.height);
 
         var pixelCallback = (cameraPixels, outputPixels, idx) => {
+            /* TODO: These are fixed heuristics for now */
             if (!(cameraPixels[idx] > 80 || cameraPixels[idx + 1] > 80 || cameraPixels[idx + 2] > 80)) {
                 outputPixels[idx + 3] = 0;
             }
@@ -202,11 +204,14 @@ class StripeScan {
         this.processEachCameraPixel(pixelCallback, doneCallback);
     }
 
+    /* Projects an all-black frame and rules out all the pixels that are not
+       dark enough as being outside the projection area. */
     blackFrame(doneCallback) {
         this.screenCtx.fillStyle = 'black';
         this.screenCtx.fillRect(0, 0, this.screenCanvas.width, this.screenCanvas.height);
 
         var pixelCallback = (cameraPixels, outputPixels, idx) => {
+            /* TODO: Fixed heuristic */
             if (cameraPixels[idx] > 150 && cameraPixels[idx + 1] > 150 && cameraPixels[idx + 2] > 150) {
                 outputPixels[idx + 3] = 0;
             }
@@ -215,6 +220,18 @@ class StripeScan {
         this.processEachCameraPixel(pixelCallback, doneCallback);
     }
 
+    /* Grabs an image from the camera server and iterates pixelCallback over
+       each of its pixels. pixelCallback gets called with:
+
+         pixelCallback(cameraPixels, outputPixels, index)
+
+       where index is the offset of the current pixel. cameraPixels and outputPixels
+       are the "data" properties of ImageData objects, so they contain a flat
+       pixel representation where idx is the offset of the red component, idx+1
+       is green, idx+2 is blue, and idx+3 is the alpha component.
+
+       The callback should write its output into outputPixels, which are the
+       pixels of the canvas returned by scan(). */
     processEachCameraPixel(pixelCallback, doneCallback) {
         /* No point in doing anything without a callback... */
         if (typeof pixelCallback !== 'function') {
@@ -224,29 +241,32 @@ class StripeScan {
         /* Grab image from the server. */
         this.grabCameraImage((img) => {
             /* Put the image in the tmp/workspace canvas. */
-            this.tmpCtx.drawImage(img, 0, 0);
+            this.cameraCtx.drawImage(img, 0, 0);
 
-            var w = this.tmpCanvas.width,
-                h = this.tmpCanvas.height,
+            var w = this.cameraCanvas.width,
+                h = this.cameraCanvas.height,
                 /* Camera image pixels */
-                cameraPixels = this.tmpCtx.getImageData(0, 0, w, h),
+                cameraPixels = this.cameraCtx.getImageData(0, 0, w, h),
                 /* Output canvas pixels */
-                outputPixels = this.canvasCtx.getImageData(0, 0, w, h);
+                outputPixels = this.outputCtx.getImageData(0, 0, w, h);
 
             for (var i = 0; i < w; ++i) {
                 for (var j = 0; j < h; ++j) {
                     var idx = (j * w + i) * 4;
+                    /* Invoke the callback */
                     pixelCallback(cameraPixels.data, outputPixels.data, idx);
                 }
             }
 
             /* Write the change pixels back into the output canvas. */
-            this.canvasCtx.putImageData(outputPixels, 0, 0);
+            this.outputCtx.putImageData(outputPixels, 0, 0);
 
             this.invoke(doneCallback);
         });
     }
 
+    /* Fills the screen canvas with numStripes stripes, alternating black and white.
+       The mode determines if the stripes will be horizontal or vertical. */
     paintStripes(numStripes, mode = 'vertical') {
         var stripeSize = (mode === 'vertical' ? this.screenCanvas.width : this.screenCanvas.height) / numStripes;
 
@@ -265,10 +285,46 @@ class StripeScan {
         }
     }
 
+    /* Grab an image from the camera, technically assuming that the image is of
+       a striped frame (done by projecting the output of paintStripes), and
+       attempts to detect which pixels are on white frames vs. black frames
+       and mark those pixels. */
     processFrame(mode, doneCallback) {
+        /* For now I store the corresponding projector pixel's x position in the
+           red channel and the y position in the y channel. If the mode is vertical,
+           offset will be 0, which is offset of the red channel relative to the pixel
+           2 is the offset of the blue channel. */
         var offset = mode === 'vertical' ? 0 : 2;
 
         var pixelCallback = (cameraPixels, outputPixels, idx) => {
+            /* TODO: This uses a fixed heuristic for brightness detection that might not work depending
+               on lighting conditions. */
+
+            /* Binary Coding. When a pixel is found to be bright, take its computed
+               position from the last iteration (either x or y, depending on whether
+               we are doing horizontal or vertical striping) and multiply it by two
+               and add one. When it's dark, just multiply by two. This will assign each
+               camera pixel to a stripe number.
+
+               It relies on the facts that
+                 - the stripes always alternate starting with white,
+                 - the sequence always starts with just two stripes, and
+                 - multiplies the number of stripes by two for each subsequent striped frame.
+               Multiplication by 2 is a simple bit-shift left.
+
+               So:
+                 1. two stripes: bw
+                 --> b:"0"                           w:"1"
+                 2. four stripes: bwbw
+                 --> b:"00" w:"01"                   b:"10" w:"11"
+                 2. eight stripes: bwbwbwbw
+                 --> b:"000" w:"001" b:"010" w:"011" b:"100" w:"101" b:"110" w:"111"
+
+               Decimal:
+                     0       1       2       3       4       5       6       7
+
+               Assuming no noise, this will make sure that each pixel is marked with
+               this precise x- and y-positions in projector space. */
             if (cameraPixels[idx] > 100 && cameraPixels[idx + 1] > 100 && cameraPixels[idx + 2] > 100) {
                 outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | 1;
             } else {
@@ -279,6 +335,7 @@ class StripeScan {
         this.processEachCameraPixel(pixelCallback, doneCallback);
     }
 
+    /* Grab an image from the camera server and invoke the callback on it */
     grabCameraImage(callback) {
         /* Add a random element to the url to prevent the browser from
            returning a cached image. */
@@ -286,6 +343,13 @@ class StripeScan {
         setTimeout(() => this.imageLoader.load(serverUrl, (img) => this.invoke(callback, img)), 200);
     }
 
+    /* Take the number of striped frames you want to run, the mode which
+       determines if the sequence will be vertical or horizontal stripes,
+       and label each pixel with its location in projector space (in terms
+       of which horizontal and vertical stripe it blongs to). Images are
+       stored in a temporary canvas that is overwritten with each frame.
+       The projector-space position of each pixel is stored in the output
+       canvas. */
     paintAndProcessStripes(n, mode, doneCallback) {
         if (n > 0) {
             var numStripes = Math.pow(2, (this.numSteps-n+1));
