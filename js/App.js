@@ -68,45 +68,13 @@ class Application extends Evented {
     }
 
     flatScan(canvas) {
-        this.correspondence.scan(canvas, () => {
+        this.correspondence.flatScan(canvas, () => {
             this.fire('flat-scan-done');
         });
     }
-
-    mountainScan(doneCb) {
-        AnySurface.Scan.mountainScan((data) => {
-            var modelName = 'Scan Elevation';
-            var model = this.modelPool.getDataModel(modelName);
-
-            if (! model) {
-                var w = data.width,
-                    h = data.height,
-                    leafletMap = this.map.leafletMap,
-                    bbox = new ModelBBox(leafletMap.getBounds(), leafletMap);
-
-                model = new ScanElevationModel(w, h, bbox, this.modelPool);
-                model.load(data);
-
-                var tileRenderer = new ModelTileRenderer(this.map, model, new ElevationPatchRenderer(model));
-                var tileServer = new ModelTileServer(tileRenderer);
-
-                var obj = {
-                    name: modelName,
-                    dataModel: model,
-                    renderer: tileRenderer,
-                    server: tileServer
-                };
-                this.addModelLayer(obj);
-            } else {
-                model.load(data);
-            }
-
-            var waterModel = this.modelPool.getDataModel('Water Flow');
-            waterModel.sampleElevationFromModel(model);
-
-            if (typeof doneCb === 'function') {
-                doneCb();
-            }
+    moundScan(canvas) {
+        this.correspondence.moundScan(canvas, () => {
+            this.fire('mound-scan-done');
         });
     }
 }
@@ -158,7 +126,7 @@ var menuUI = React.createClass({
         app.fire('flat-scan-start');
     },
     handleMountainScanClick: function() {
-        app.mountainScan();
+        app.fire('mound-scan-start');
     },
     render: function() {
         var startButton = D.button({onClick: this.handleStartClick}, 'Start');
@@ -176,13 +144,12 @@ var menuUI = React.createClass({
 var scanUI = React.createClass({
     getInitialState: function() {
         this.id = 'scan';
-        app.on('flat-scan-start', () => this.startScan());
+        app.on('flat-scan-start', () => this.startFlatScan());
+        app.on('mound-scan-start', () => this.startMoundScan());
         app.on('flat-scan-done', () => this.setState({active:false}));
         return { active: false };
     },
-    startScan: function() {
-        this.setState({active:true});
-
+    getCanvas: function() {
         var canvas = this.refs[this.id].getDOMNode(),
             width = $(canvas).parent().width(),
             height = $(canvas).parent().height();
@@ -190,7 +157,15 @@ var scanUI = React.createClass({
         canvas.width = width;
         canvas.height = height;
 
-        app.flatScan(canvas);
+        return canvas;
+    },
+    startFlatScan: function() {
+        this.setState({active:true});
+        app.flatScan(this.getCanvas());
+    },
+    startMoundScan: function() {
+        this.setState({active:true});
+        app.moundScan(this.getCanvas());
     },
     render: function() {
         console.log('render', this.state);
