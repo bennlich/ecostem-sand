@@ -169,7 +169,8 @@ export class StripeScan {
        a striped frame (done by projecting the output of paintStripes), and
        markes each camera pixel with its position in projector space, where
        its x-position is the x-th vertical stripe, and the y-position is the
-       y-th horizontal stripe (counting from 0). */
+       y-th horizontal stripe (counting from 0), in the last, highest resolution
+       striped frame. */
     processFrame(mode, doneCallback) {
         /* For now I store the corresponding projector pixel's x position in the
            red channel and the y position in the blue channel. If the mode is vertical,
@@ -188,7 +189,7 @@ export class StripeScan {
                camera pixel to a stripe number.
 
                It relies on the facts that
-                 - the stripes always alternate starting with white,
+                 - the stripes always alternate starting with black,
                  - the sequence always starts with just two stripes, and
                  - multiplies the number of stripes by two for each subsequent striped frame.
                Multiplication by 2 is a simple bit-shift left.
@@ -197,7 +198,7 @@ export class StripeScan {
                  1. two stripes: bw
                  --> b:"0"                           w:"1"
                  2. four stripes: bwbw
-                 --> b:"00" w:"01"                   b:"10" w:"11"
+                 --> b:"00"          w:"01"          b:"10"          w:"11"
                  2. eight stripes: bwbwbwbw
                  --> b:"000" w:"001" b:"010" w:"011" b:"100" w:"101" b:"110" w:"111"
 

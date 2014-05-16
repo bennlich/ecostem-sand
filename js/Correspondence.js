@@ -7,6 +7,12 @@ import {StripeScan} from './StripeScan';
 export class Correspondence {
     constructor() {
         this.stripeScan = new StripeScan();
+        /* All the data will be 128x128 in size. This is in tight inter-dependence
+           with the fact that StripeScan will project 7 frames (meaning 128 stripes)
+           on the last frame.
+
+           TODO: The dependency between raster size and the number of frames
+           projected by StripeScan needs to be made explicit. */
         this.dataSize = 128;
         this.flatData = new Raster(this.dataSize, this.dataSize, {x:0, y:0});
         this.moundData = new Raster(this.dataSize, this.dataSize, {x:0, y:0});
@@ -22,6 +28,8 @@ export class Correspondence {
        object has been introduced into the projected frame. */
     moundScan(screenCanvas, callback) {
         this.doScan(screenCanvas, this.moundData.data, () => {
+            /* Just paint and show the canvas for now.
+               TODO: invoke callback instead. */
             this.doDiff();
             this.paintDiff(screenCanvas);
         });
@@ -31,8 +39,12 @@ export class Correspondence {
     doDiff() {
         for (var x = 0; x < this.dataSize; ++x) {
             for (var y = 0; y < this.dataSize; ++y) {
-                this.diffData.data[x][y].x = this.moundData.data[x][y].x - this.flatData.data[x][y].x;
-                this.diffData.data[x][y].y = this.moundData.data[x][y].y - this.flatData.data[x][y].y;
+                var moundData = this.moundData.data[x][y],
+                    flatData = this.flatData.data[x][y],
+                    diffData = this.diffData.data[x][y];
+
+                diffData.x = moundData.x - flatData.x;
+                diffData.y = moundData.y - flatData.y;
             }
         }
     }
@@ -51,6 +63,8 @@ export class Correspondence {
         for (var x = 0; x < this.dataSize; ++x) {
             for (var y = 0; y < this.dataSize; ++y) {
                 var patch = this.diffData.data[x][y];
+
+                /* For now we just add together the x- and y-differences */
                 var idx = Math.abs(patch.x)+Math.abs(patch.y);
 
                 if (idx >= colors.length)
@@ -85,7 +99,7 @@ export class Correspondence {
                         var x = pixels[idx];
                         /* projector y-value is in the blue channel */
                         var y = pixels[idx+2];
-                        /* store the camera pixel (x,y) in the raster cell. This
+                        /* Store the camera pixel (x,y) in the raster cell. This
                            is super dumb right now. There will be many cam pixels
                            with the same projector (x,y). Currently, the last
                            pixel in the iteration wins.
