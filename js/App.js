@@ -146,7 +146,7 @@ var scanUI = React.createClass({
         this.id = 'scan';
         app.on('flat-scan-start', () => this.startFlatScan());
         app.on('mound-scan-start', () => this.startMoundScan());
-        app.on('flat-scan-done', () => this.setState({active:false}));
+        app.on('flat-scan-done', () => this.setState({active:true}));
         return { active: false };
     },
     getCanvas: function() {

@@ -3,10 +3,10 @@ import {ImageLoader} from './Util';
 
 export class StripeScan {
     constructor() {
-        this.server = "http://192.168.1.141:8080/shot.jpg";
+        this.server = "http://192.168.1.133:8080/shot.jpg";
         this.imageLoader = new ImageLoader();
 
-        /* the canvas on which we draw the binary code stripes */
+        /* the canvas on which we draw the gray code stripes */
         this.screenCanvas = null;
         this.screenCtx = null;
 
@@ -145,13 +145,41 @@ export class StripeScan {
         });
     }
 
-    /* Fills the screen canvas with numStripes stripes, alternating black and white.
-       The mode determines if the stripes will be horizontal or vertical. */
+    /* Fills the screen canvas with numStripes stripes. The stripes alternate
+       in the following pattern (where 0 = white, 1 = black):
+         Length 2:  01
+         Length 4:  0110
+         Length 8:  01100110
+         Length 16: 0110011001100110
+       This helps tagging pixels with their x- and y-coord in projector space
+       by using a gray coding scheme. */
     paintStripes(numStripes, mode = 'vertical') {
         var stripeSize = (mode === 'vertical' ? this.screenCanvas.width : this.screenCanvas.height) / numStripes;
 
-        var state = true;
-        var nextColor = () => (state = !state) ? 'white' : 'black';
+        /* This state machine determines what the next color should be. There are four states:
+             0: white
+             1: white
+             2: black
+             2: black
+           We always start in state 1, painting a white stripe first. */
+        var state = 1;
+        var nextColor = () => {
+            var ret;
+
+            if (state === 0 || state === 1) {
+                ret = 'white';
+                state++;
+            } else if (state === 2 || state === 3) {
+                ret = 'black';
+                state++;
+            }
+
+            if (state === 4) {
+                state = 0;
+            }
+
+            return ret;
+        };
 
         this.screenCtx.clearRect(0, 0, this.screenCanvas.width, this.screenCanvas.height);
 
@@ -182,35 +210,47 @@ export class StripeScan {
             /* TODO: This uses a fixed heuristic for brightness detection that might not work depending
                on lighting conditions. */
 
-            /* Binary Coding. When a pixel is found to be bright, take its computed
-               position from the last iteration (either x or y, depending on whether
-               we are doing horizontal or vertical striping) and multiply it by two
-               and add one. When it's dark, just multiply by two. This will assign each
-               camera pixel to a stripe number.
+            /* Gray Coding. For each striped frame, we progressively tag each
+               pixel with its x- or y-coordinate in projector space (in terms of the
+               vertical stripe number x and horizontal stripe number y -- counting
+               from 0). The stripes are projected in a gray code scheme. The x-
+               and y-coords are always stored in binary (not gray codes), and the
+               conversion is done on the fly.
 
-               It relies on the facts that
-                 - the stripes always alternate starting with black,
-                 - the sequence always starts with just two stripes, and
-                 - multiplies the number of stripes by two for each subsequent striped frame.
-               Multiplication by 2 is a simple bit-shift left.
+               The gray code frames look like (0=white, 1=black):
+                 0               1
+                 0       1       1       0
+                 0   1   1   0   0   1   1   0, etc.
 
-               So:
-                 1. two stripes: bw
-                 --> b:"0"                           w:"1"
-                 2. four stripes: bwbw
-                 --> b:"00"          w:"01"          b:"10"          w:"11"
-                 2. eight stripes: bwbwbwbw
-                 --> b:"000" w:"001" b:"010" w:"011" b:"100" w:"101" b:"110" w:"111"
-
-               Decimal:
-                     0       1       2       3       4       5       6       7
+               We progressively assign indices to the corresponding pixels like:
+               Frame 1:
+                 0               1
+               > 0               1
+               Frame 2:
+                 0       1       1       0
+               > 00      01      10      11
+               Frame 3:
+                 0   1   1   0   0   1   1   0
+               > 000 001 010 011 100 101 110 111 (notice: decimal 0-7)
 
                Assuming no noise, this will make sure that each pixel is marked with
                this precise x- and y-positions in projector space. */
+
+            var prevBit = outputPixels[idx + offset] & 0x1,
+                whiteBit = 0,
+                blackBit = 1;
+
+            /* If the LSB from the last frame is 1, flip the values. This is the
+               whole trick to incrementally translating gray to binary. */
+            if (prevBit === 1) {
+                whiteBit = 1;
+                blackBit = 0;
+            }
+
             if (cameraPixels[idx] > 100 && cameraPixels[idx + 1] > 100 && cameraPixels[idx + 2] > 100) {
-                outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | 1;
+                outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | whiteBit;
             } else {
-                outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | 0;
+                outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | blackBit;
             }
         };
 

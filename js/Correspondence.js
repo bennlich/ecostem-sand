@@ -89,6 +89,9 @@ export class Correspondence {
             var ctx = canvas.getContext('2d'),
                 pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
+            var sctx = screenCanvas.getContext('2d');
+            sctx.drawImage(canvas, 0, 0);
+
             for (var i = 0; i < canvas.width; ++i) {
                 for (var j = 0; j < canvas.height; ++j) {
                     var idx = (j * canvas.width + i) * 4;
