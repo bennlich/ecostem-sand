@@ -50,13 +50,9 @@ export class StripeScan {
                a resolution of 128 x 128 for the correspondence raster. */
             this.numSteps = 7;
 
-            this.blackFrame(() => {
-                this.whiteFrame(() => {
-                    this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
-                        this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
-                            this.invoke(doneCallback, this.outputCanvas);
-                        });
-                    });
+            this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
+                this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
+                    this.invoke(doneCallback, this.outputCanvas);
                 });
             });
         });

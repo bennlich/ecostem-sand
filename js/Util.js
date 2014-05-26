@@ -1,6 +1,51 @@
 
+class ImageLoaderTestDummy {
+    constructor() {
+        this.imageLoader = new RealImageLoader();
+        this.init = false;
+        this.stage = 'before';
+        this.step = 1;
+        this.mode = 'v';
+    }
+
+    _doDummyFrame(callback) {
+        this.imageLoader.load('img/scantest/before/h1.jpg',callback);
+        this.init = true;
+    }
+
+    _flipMode() {
+        this.step = 1;
+        this.mode = this.mode === 'v' ? 'h' : 'v';
+    }
+
+    _flipStage() {
+        this.step = 1;
+        this.mode = 'v';
+        this.stage = this.stage === 'before' ? 'after' : 'before';
+    }
+
+    load(url, callback) {
+        if (!this.init) {
+            this._doDummyFrame(callback);
+            return;
+        }
+        url = 'img/scantest/{0}/{1}{2}.jpg'.format(this.stage, this.mode, this.step);
+        console.log('loading', url);
+        this.imageLoader.load(url, callback);
+        this.step++;
+        if (this.step > 7) {
+            if (this.mode === 'h') {
+                this._flipStage();
+                this.init = false;
+            } else {
+                this._flipMode();
+            }
+        }
+    }
+}
+
 /* Simple utility that can load a remote image and invoke a user callback on it */
-export class ImageLoader {
+class RealImageLoader {
     constructor() {}
 
     load(url, callback) {
@@ -23,6 +68,8 @@ export class ImageLoader {
         this.loadIntoCanvasCtx(url, canvas.getContext('2d'));
     }
 }
+
+export var ImageLoader = ImageLoaderTestDummy;
 
 /* Simple 2d raster. TODO: Should technically be a model, I think. */
 export class Raster {
