@@ -32,6 +32,19 @@ export class Correspondence {
                TODO: invoke callback instead. */
             this.doDiff();
             this.paintDiff(screenCanvas);
+
+            var patchWidth = screenCanvas.width / 128;
+            var patchHeight = screenCanvas.height / 128;
+
+            // TODO: temporary poor-man "patch inspector"
+            $(screenCanvas).on('click', (e) => {
+                var x = Math.floor(e.clientX / patchWidth);
+                var y = Math.floor(e.clientY / patchHeight);
+                console.log('flat', this.flatData.data[x][y].x, this.flatData.data[x][y].y);
+                console.log('mound', this.moundData.data[x][y].x, this.moundData.data[x][y].y);
+                console.log('diff', this.diffData.data[x][y].x, this.diffData.data[x][y].y);
+            });
+            //callback();
         });
     }
 
@@ -43,8 +56,49 @@ export class Correspondence {
                     flatData = this.flatData.data[x][y],
                     diffData = this.diffData.data[x][y];
 
-                diffData.x = moundData.x - flatData.x;
-                diffData.y = moundData.y - flatData.y;
+                var diffX = moundData.x - flatData.x;
+                var diffY = moundData.y - flatData.y;
+
+                /* Simply chop off differences bigger than 120 pixels
+                   on any axis. For our current experiments, these are extreme
+                   enough differences, and indicate errors.
+                   TODO: fixed heuristic; make it dynamic. */
+                if (Math.abs(diffY) > 120 || Math.abs(diffX) > 120) {
+                    diffX = 0;
+                    diffY = 0;
+                }
+
+                diffData.x = diffX;
+                diffData.y = diffY;
+            }
+        }
+
+        /* Now that we chopped off the extreme differences (set the diffs to 0)
+           we fill them back in using an average of the neighboring patches. */
+        for (var x = 0; x < this.dataSize; ++x) {
+            for (var y = 0; y < this.dataSize; ++y) {
+                var diffData = this.diffData.data[x][y];
+
+                if (diffData.x === 0 && diffData.y === 0) {
+                    var n = this.diffData.neighbors(x,y);
+                    var num = 0, xSum = 0, ySum = 0;
+
+                    for (var i = 0; i < n.length; ++i) {
+                        /* We only count neighbor patches that have non-zero diffs. */
+                        if (n[i].x !== 0 && n[i].y !== 0) {
+                            xSum += n[i].x;
+                            ySum += n[i].y;
+                            num++;
+                        }
+                    }
+
+                    /* And we set the current patch to the avg of the neighbors
+                       only when there are "enough" neighbors -- |n|/2 in this case. */
+                    if (num > n.length/2) {
+                        diffData.x = Math.floor(xSum / num);
+                        diffData.y = Math.floor(ySum / num);
+                    }
+                }
             }
         }
     }
@@ -112,6 +166,7 @@ export class Correspondence {
                     }
                 }
             }
+
             if (typeof callback === 'function') {
                 callback();
             }

@@ -1,8 +1,81 @@
 
 import {ImageLoader} from './Util';
+import {Raster} from './Util';
+
+/* TODO: this should eventually be a model, and I think the Raster
+   class shouldn't be needed? */
+class OutputRaster extends Raster {
+    constructor(width, height) {
+        var initValue = {
+            x:0,
+            y:0,
+            min: 1000000,
+            max: -1000000,
+            variance: 0,
+            enabled: true
+        };
+        super(width, height, initValue);
+    }
+
+    pixelRenderer(rasterCell) {
+        return {
+            r: rasterCell.x,
+            g: 0,
+            b: rasterCell.y,
+            a: rasterCell.enabled ? 255 : 0
+        };
+    }
+
+    processPixelChange(rasterCell, pixel) {
+        var val = pixel.r + pixel.g + pixel.b;
+
+        if (val > rasterCell.max)
+            rasterCell.max = val;
+
+        if (val < rasterCell.min)
+            rasterCell.min = val;
+
+        rasterCell.variance = rasterCell.max - rasterCell.min;
+    }
+
+    disableLowVariancePixels() {
+        var reduceFun = (memo, list) => {
+            return memo.concat(_.pluck(list, 'variance'));
+        };
+
+        var variances = _.reduce(this.data, reduceFun, []);
+        variances.sort(function(x,y) { return x-y; });
+        variances = _.uniq(variances, true);
+
+        var idx = Math.ceil(variances.length * 0.5);
+        var middle = variances[idx];
+
+        console.log(variances, idx, middle);
+
+        var x,y;
+
+        for (x = 0; x < this.width; ++x) {
+            for (y = 0; y < this.height; ++y) {
+                var cell = this.data[x][y];
+                if (cell.variance < middle) {
+                    cell.enabled = false;
+                }
+            }
+        }
+
+        // temporary to cut out mirror reflection from the test pictures
+        for (x = 0; x < this.width; ++x) {
+            for (y = 500; y < this.height; ++y) {
+                this.data[x][y].enabled = false;
+            }
+        }
+    }
+}
 
 export class StripeScan {
     constructor() {
+        window.ss = this;
+
         this.server = "http://192.168.1.133:8080/shot.jpg";
         this.imageLoader = new ImageLoader();
 
@@ -10,16 +83,21 @@ export class StripeScan {
         this.screenCanvas = null;
         this.screenCtx = null;
 
-        /* the canvas in which we store the correspondence */
-        this.outputCanvas = null;
-        this.outputCtx = null;
+        /* the raster in which we store the correspondence */
+        this.outputRaster = null;
 
         /* temporary/working space canvas to store camera frame pixels */
         this.cameraCanvas = null;
         this.cameraCtx = null;
     }
 
+    renderOutputCanvas() {
+        this.outputRaster.renderInCanvas(this.outputCanvas);
+    }
+
     makeCanvases(width, height) {
+        this.outputRaster = new OutputRaster(width, height);
+
         var outputCanvas = document.createElement('canvas');
         var cameraCanvas = document.createElement('canvas');
 
@@ -28,11 +106,6 @@ export class StripeScan {
 
         this.outputCanvas = outputCanvas;
         this.outputCtx = outputCanvas.getContext('2d');
-
-        /* It's important that we start with all r/g/b values set to 0
-           and all opacity values set to 255. */
-        this.outputCtx.fillStyle = 'black';
-        this.outputCtx.fillRect(0, 0, width, height);
 
         this.cameraCanvas = cameraCanvas;
         this.cameraCtx = cameraCanvas.getContext('2d');
@@ -52,6 +125,8 @@ export class StripeScan {
 
             this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
                 this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
+                    this.outputRaster.disableLowVariancePixels();
+                    this.renderOutputCanvas();
                     this.invoke(doneCallback, this.outputCanvas);
                 });
             });
@@ -64,50 +139,18 @@ export class StripeScan {
         }
     }
 
-    /* Projects an all-white frame and uses the frame to rule out all the pixels
-       that are not bright enough as being outside the projection area. */
-    whiteFrame(doneCallback) {
-        this.screenCtx.fillStyle = 'white';
-        this.screenCtx.fillRect(0, 0, this.screenCanvas.width, this.screenCanvas.height);
-
-        var pixelCallback = (cameraPixels, outputPixels, idx) => {
-            /* TODO: These are fixed heuristics for now */
-            if (!(cameraPixels[idx] > 80 || cameraPixels[idx + 1] > 80 || cameraPixels[idx + 2] > 80)) {
-                outputPixels[idx + 3] = 0;
-            }
-        };
-
-        this.processEachCameraPixel(pixelCallback, doneCallback);
-    }
-
-    /* Projects an all-black frame and rules out all the pixels that are not
-       dark enough as being outside the projection area. */
-    blackFrame(doneCallback) {
-        this.screenCtx.fillStyle = 'black';
-        this.screenCtx.fillRect(0, 0, this.screenCanvas.width, this.screenCanvas.height);
-
-        var pixelCallback = (cameraPixels, outputPixels, idx) => {
-            /* TODO: Fixed heuristic */
-            if (cameraPixels[idx] > 150 && cameraPixels[idx + 1] > 150 && cameraPixels[idx + 2] > 150) {
-                outputPixels[idx + 3] = 0;
-            }
-        };
-
-        this.processEachCameraPixel(pixelCallback, doneCallback);
-    }
-
     /* Grabs an image from the camera server and iterates pixelCallback over
        each of its pixels. pixelCallback gets called with:
 
-         pixelCallback(cameraPixels, outputPixels, index)
+         pixelCallback(pixel, outputRasterCell)
 
-       where index is the offset of the current pixel. cameraPixels and outputPixels
-       are the "data" properties of ImageData objects, so they contain a flat
+       where index is the offset of the current pixel. cameraPixels is
+       the "data" properties of the camera canvas ImageData object, so it contains a flat
        pixel representation where idx is the offset of the red component, idx+1
        is green, idx+2 is blue, and idx+3 is the alpha component.
 
-       The callback should write its output into outputPixels, which are the
-       pixels of the canvas returned by scan(). */
+       The callback should write its output into rasterCell, which represents
+       the corresponding cell for this pixel in this.outputRaster. */
     processEachCameraPixel(pixelCallback, doneCallback) {
         /* No point in doing anything without a callback... */
         if (typeof pixelCallback !== 'function') {
@@ -122,20 +165,23 @@ export class StripeScan {
             var w = this.cameraCanvas.width,
                 h = this.cameraCanvas.height,
                 /* Camera image pixels */
-                cameraPixels = this.cameraCtx.getImageData(0, 0, w, h),
-                /* Output canvas pixels */
-                outputPixels = this.outputCtx.getImageData(0, 0, w, h);
+                cameraPixels = this.cameraCtx.getImageData(0, 0, w, h);
 
             for (var i = 0; i < w; ++i) {
                 for (var j = 0; j < h; ++j) {
                     var idx = (j * w + i) * 4;
                     /* Invoke the callback */
-                    pixelCallback(cameraPixels.data, outputPixels.data, idx);
+                    var pixel = {
+                        r: cameraPixels.data[idx],
+                        g: cameraPixels.data[idx+1],
+                        b: cameraPixels.data[idx+2],
+                        a: cameraPixels.data[idx+3]
+                    };
+                    var rasterCell = this.outputRaster.data[i][j];
+                    pixelCallback(pixel, rasterCell);
+                    this.outputRaster.processPixelChange(rasterCell, pixel);
                 }
             }
-
-            /* Write the change pixels back into the output canvas. */
-            this.outputCtx.putImageData(outputPixels, 0, 0);
 
             this.invoke(doneCallback);
         });
@@ -196,13 +242,11 @@ export class StripeScan {
        y-th horizontal stripe (counting from 0), in the last, highest resolution
        striped frame. */
     processFrame(mode, doneCallback) {
-        /* For now I store the corresponding projector pixel's x position in the
-           red channel and the y position in the blue channel. If the mode is vertical,
-           offset will be 0, which is offset of the red channel relative to the pixel
-           2 is the offset of the blue channel. */
-        var offset = mode === 'vertical' ? 0 : 2;
+        /* determines which property of outputRasterCell we write into. If mode
+           is 'vertical', we write the 'x' component. If it's horizontal, 'y' */
+        var outputProp = mode === 'vertical' ? 'x' : 'y';
 
-        var pixelCallback = (cameraPixels, outputPixels, idx) => {
+        var pixelCallback = (cameraPixel, outputRasterCell) => {
             /* TODO: This uses a fixed heuristic for brightness detection that might not work depending
                on lighting conditions. */
 
@@ -232,7 +276,7 @@ export class StripeScan {
                Assuming no noise, this will make sure that each pixel is marked with
                this precise x- and y-positions in projector space. */
 
-            var prevBit = outputPixels[idx + offset] & 0x1,
+            var prevBit = outputRasterCell[outputProp] & 0x1,
                 whiteBit = 0,
                 blackBit = 1;
 
@@ -243,10 +287,10 @@ export class StripeScan {
                 blackBit = 0;
             }
 
-            if (cameraPixels[idx] > 100 && cameraPixels[idx + 1] > 100 && cameraPixels[idx + 2] > 100) {
-                outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | whiteBit;
+            if (cameraPixel.r > 100 && cameraPixel.g > 100 && cameraPixel.b > 100) {
+                outputRasterCell[outputProp] = outputRasterCell[outputProp] << 1 | whiteBit;
             } else {
-                outputPixels[idx + offset] = (outputPixels[idx + offset] << 1) | blackBit;
+                outputRasterCell[outputProp] = outputRasterCell[outputProp] << 1 | blackBit;
             }
         };
 
