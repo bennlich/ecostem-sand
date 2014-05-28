@@ -113,9 +113,10 @@ export class StripeScan {
         this.cameraCtx = cameraCanvas.getContext('2d');
     }
 
-    scan(canvas, doneCallback) {
+    scan(canvas, doneCallback, errorCallback) {
         this.screenCanvas = canvas;
         this.screenCtx = canvas.getContext('2d');
+        this.errorCallback = errorCallback;
 
         /* Grab an image just to get dimensions */
         this.grabCameraImage((img) => {
@@ -304,7 +305,14 @@ export class StripeScan {
         /* Add a random element to the url to prevent the browser from
            returning a cached image. */
         var serverUrl = this.server + '?x=' + Math.random();
-        setTimeout(() => this.imageLoader.load(serverUrl, (img) => this.invoke(callback, img)), 200);
+        setTimeout(() =>
+            this.imageLoader.load(
+                serverUrl,
+                (img) => this.invoke(callback, img),
+                this.errorCallback
+            ),
+            200
+        );
     }
 
     /* Take the number of striped frames you want to run, the mode which

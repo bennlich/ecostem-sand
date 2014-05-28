@@ -48,16 +48,44 @@ class ImageLoaderTestDummy {
 class RealImageLoader {
     constructor() {}
 
-    load(url, callback) {
+    load(url, callback, errorCallback) {
         var img = new Image();
+        var loading = false;
+        var timeout;
 
         img.crossOrigin = '';
         img.onload = () => {
+            if (!loading) {
+                return;
+            }
+            clearTimeout(timeout);
+            loading = false;
             if (typeof callback === 'function') {
                 callback(img);
             }
         };
+        img.onerror = () => {
+            if (!loading) {
+                return;
+            }
+            clearTimeout(timeout);
+            loading = false;
+            if (typeof errorCallback === 'function') {
+                errorCallback();
+            }
+        };
+
+        loading = true;
         img.src = url;
+
+        timeout = setTimeout(() => {
+            if (loading) {
+                loading = false;
+                if (typeof errorCallback === 'function') {
+                    errorCallback();
+                }
+            }
+        }, 1000);
     }
 
     loadIntoCanvasCtx(url, ctx) {

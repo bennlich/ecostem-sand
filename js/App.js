@@ -70,11 +70,15 @@ class Application extends Evented {
     flatScan(canvas) {
         this.correspondence.flatScan(canvas, () => {
             this.fire('flat-scan-done');
+        }, () => {
+            this.fire('error', 'Could not load camera frame.');
         });
     }
     moundScan(canvas) {
         this.correspondence.moundScan(canvas, () => {
             this.fire('mound-scan-done');
+        }, () => {
+            this.fire('error', 'Could not load camera frame.');
         });
     }
 }
@@ -168,18 +172,40 @@ var scanUI = React.createClass({
         app.moundScan(this.getCanvas());
     },
     render: function() {
-        console.log('render', this.state);
-        return D.div({className: 'canvas-container'}, this.state.active ? D.canvas({id:this.id,ref:this.id}) : null);
+        return D.div(
+            {className: 'canvas-container'},
+            this.state.active ? D.canvas({id:this.id, ref:this.id}) : null
+        );
+    }
+});
+
+var errorMessageUI = React.createClass({
+    getInitialState: function() {
+        app.on('error', (msg) => this.setState({error: msg}));
+        return {error: null};
+    },
+    handleClick: function() {
+        this.setState({error:null});
+    },
+    render: function() {
+        if (this.state.error) {
+            return D.div({className: 'error'}, [
+                this.state.error,
+                D.button({onClick: this.handleClick}, 'OK')
+            ]);
+        } else {
+            return D.div();
+        }
     }
 });
 
 var mainUI = React.createClass({
     render: function() {
-        console.log(this.props.app);
         return D.div({}, [
             tfMockUI(),
             leafletUI(),
             scanUI(),
+            errorMessageUI(),
             menuUI()
         ]);
     }

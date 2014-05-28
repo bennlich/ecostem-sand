@@ -20,13 +20,13 @@ export class Correspondence {
     }
 
     /* Perform a "before" scan */
-    flatScan(screenCanvas, callback) {
-        this.doScan(screenCanvas, this.flatData.data, callback);
+    flatScan(screenCanvas, callback, errorCallback) {
+        this.doScan(screenCanvas, this.flatData.data, callback, errorCallback);
     }
 
     /* Perform an "after" scan -- after say, the sand has changed, or a new
        object has been introduced into the projected frame. */
-    moundScan(screenCanvas, callback) {
+    moundScan(screenCanvas, callback, errorCallback) {
         this.doScan(screenCanvas, this.moundData.data, () => {
 
             /* Just paint and show the canvas for now.
@@ -46,7 +46,8 @@ export class Correspondence {
                 console.log('diff', this.diffData.data[x][y].x, this.diffData.data[x][y].y);
             });
             //callback();
-        });
+        },
+        errorCallback);
     }
 
     /* Compute the before/after differences. */
@@ -139,8 +140,8 @@ export class Correspondence {
     /* Invokes a scan. The stripe frames will be painted in screenCanvas,
        and 'raster' will be populated with {x,y} values, where x is the
        camera x for that raster cell, and y is its camera y. */
-    doScan(screenCanvas, raster, callback) {
-        this.stripeScan.scan(screenCanvas, (canvas) => {
+    doScan(screenCanvas, raster, callback, errorCallback) {
+        var scanCallback = (canvas) => {
             var ctx = canvas.getContext('2d'),
                 pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
 
@@ -171,6 +172,7 @@ export class Correspondence {
             if (typeof callback === 'function') {
                 callback();
             }
-        });
+        };
+        this.stripeScan.scan(screenCanvas, scanCallback, errorCallback);
     }
 }
