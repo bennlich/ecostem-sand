@@ -28,6 +28,7 @@ export class Correspondence {
        object has been introduced into the projected frame. */
     moundScan(screenCanvas, callback) {
         this.doScan(screenCanvas, this.moundData.data, () => {
+
             /* Just paint and show the canvas for now.
                TODO: invoke callback instead. */
             this.doDiff();
@@ -63,7 +64,7 @@ export class Correspondence {
                    on any axis. For our current experiments, these are extreme
                    enough differences, and indicate errors.
                    TODO: fixed heuristic; make it dynamic. */
-                if (Math.abs(diffY) > 120 || Math.abs(diffX) > 120) {
+                if (Math.abs(diffY) + Math.abs(diffX) > 80) {
                     diffX = 0;
                     diffY = 0;
                 }
@@ -105,7 +106,7 @@ export class Correspondence {
 
     /* Paint the differences onto a canvas. */
     paintDiff(canvas) {
-        var colors = Gradient.gradient('#000', '#fff', 100);
+        var colors = Gradient.gradient('#3d5a99', '#b03333', 30);
         var ctx = canvas.getContext('2d');
 
         var patchWidth = canvas.width / this.dataSize;

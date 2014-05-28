@@ -63,12 +63,14 @@ class OutputRaster extends Raster {
             }
         }
 
+        /*
         // temporary to cut out mirror reflection from the test pictures
         for (x = 0; x < this.width; ++x) {
             for (y = 500; y < this.height; ++y) {
                 this.data[x][y].enabled = false;
             }
         }
+        */
     }
 }
 
@@ -287,7 +289,7 @@ export class StripeScan {
                 blackBit = 0;
             }
 
-            if (cameraPixel.r > 100 && cameraPixel.g > 100 && cameraPixel.b > 100) {
+            if (cameraPixel.r + cameraPixel.g + cameraPixel.b > 450) {
                 outputRasterCell[outputProp] = outputRasterCell[outputProp] << 1 | whiteBit;
             } else {
                 outputRasterCell[outputProp] = outputRasterCell[outputProp] << 1 | blackBit;
