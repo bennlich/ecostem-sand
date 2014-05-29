@@ -63,8 +63,9 @@ class OutputRaster extends Raster {
             }
         }
 
-        /*
+
         // temporary to cut out mirror reflection from the test pictures
+        /*
         for (x = 0; x < this.width; ++x) {
             for (y = 500; y < this.height; ++y) {
                 this.data[x][y].enabled = false;
@@ -91,13 +92,18 @@ export class StripeScan {
         /* temporary/working space canvas to store camera frame pixels */
         this.cameraCanvas = null;
         this.cameraCtx = null;
+
+        this.init();
     }
 
     renderOutputCanvas() {
         this.outputRaster.renderInCanvas(this.outputCanvas);
     }
 
-    makeCanvases(width, height) {
+    init(width, height) {
+        this.horizStripeImages = [];
+        this.vertStripeImages = [];
+
         this.outputRaster = new OutputRaster(width, height);
 
         var outputCanvas = document.createElement('canvas');
@@ -120,20 +126,53 @@ export class StripeScan {
 
         /* Grab an image just to get dimensions */
         this.grabCameraImage((img) => {
-            this.makeCanvases(img.width, img.height);
+            this.init(img.width, img.height);
             /* numSteps is how many level of stripes to flash. numSteps == 7
-               would mean the finest level will display 2^7 = 128 stripes, giving
-               a resolution of 128 x 128 for the correspondence raster. */
+            would mean the finest level will display 2^7 = 128 stripes, giving
+            a resolution of 128 x 128 for the correspondence raster. */
             this.numSteps = 7;
 
-            this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
-                this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
-                    this.outputRaster.disableLowVariancePixels();
-                    this.renderOutputCanvas();
-                    this.invoke(doneCallback, this.outputCanvas);
-                });
+            this.grabImages(() => {
+                this.computeMinMax();
+                this.processImages('vertical');
+                this.processImages('horizontal');
+                this.outputRaster.disableLowVariancePixels();
+                this.renderOutputCanvas();
+                this.invoke(doneCallback, this.outputCanvas);
             });
+            /*
+            this.computeMinMax(() => {
+                this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
+                    this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
+                        this.outputRaster.disableLowVariancePixels();
+                        this.renderOutputCanvas();
+                        this.invoke(doneCallback, this.outputCanvas);
+                    });
+                });
+            });*/
         });
+    }
+
+    computeMinMax() {
+        var pixelCallback = (pixel, rasterCell) => {
+            var value = pixel.r + pixel.g + pixel.b;
+            if (value > rasterCell.max) {
+                rasterCell.max = value;
+            }
+            if (value < rasterCell.min) {
+                rasterCell.min = value;
+            }
+            rasterCell.variance = rasterCell.max - rasterCell.min;
+        };
+        _.each(this.vertStripeImages, (img) => this.processEachCameraPixel(img, pixelCallback));
+        _.each(this.horizStripeImages, (img) => this.processEachCameraPixel(img, pixelCallback));
+    }
+
+    isBright(pixel, rasterCell) {
+        var variance = rasterCell.max - rasterCell.min;
+        var val = pixel.r + pixel.g + pixel.b;
+
+        return val > rasterCell.min + variance/2;
     }
 
     invoke(callback, arg) {
@@ -154,40 +193,34 @@ export class StripeScan {
 
        The callback should write its output into rasterCell, which represents
        the corresponding cell for this pixel in this.outputRaster. */
-    processEachCameraPixel(pixelCallback, doneCallback) {
+    processEachCameraPixel(img, pixelCallback) {
         /* No point in doing anything without a callback... */
         if (typeof pixelCallback !== 'function') {
             return;
         }
 
-        /* Grab image from the server. */
-        this.grabCameraImage((img) => {
-            /* Put the image in the tmp/workspace canvas. */
-            this.cameraCtx.drawImage(img, 0, 0);
+        /* Put the image in the tmp/workspace canvas. */
+        this.cameraCtx.drawImage(img, 0, 0);
 
-            var w = this.cameraCanvas.width,
-                h = this.cameraCanvas.height,
-                /* Camera image pixels */
-                cameraPixels = this.cameraCtx.getImageData(0, 0, w, h);
+        var w = this.cameraCanvas.width,
+        h = this.cameraCanvas.height,
+        /* Camera image pixels */
+        cameraPixels = this.cameraCtx.getImageData(0, 0, w, h);
 
-            for (var i = 0; i < w; ++i) {
-                for (var j = 0; j < h; ++j) {
-                    var idx = (j * w + i) * 4;
-                    /* Invoke the callback */
-                    var pixel = {
-                        r: cameraPixels.data[idx],
-                        g: cameraPixels.data[idx+1],
-                        b: cameraPixels.data[idx+2],
-                        a: cameraPixels.data[idx+3]
-                    };
-                    var rasterCell = this.outputRaster.data[i][j];
-                    pixelCallback(pixel, rasterCell);
-                    this.outputRaster.processPixelChange(rasterCell, pixel);
-                }
+        for (var i = 0; i < w; ++i) {
+            for (var j = 0; j < h; ++j) {
+                var idx = (j * w + i) * 4;
+                /* Invoke the callback */
+                var pixel = {
+                    r: cameraPixels.data[idx],
+                    g: cameraPixels.data[idx+1],
+                    b: cameraPixels.data[idx+2],
+                    a: cameraPixels.data[idx+3]
+                };
+                var rasterCell = this.outputRaster.data[i][j];
+                pixelCallback(pixel, rasterCell);
             }
-
-            this.invoke(doneCallback);
-        });
+        }
     }
 
     /* Fills the screen canvas with numStripes stripes. The stripes alternate
@@ -244,7 +277,7 @@ export class StripeScan {
        its x-position is the x-th vertical stripe, and the y-position is the
        y-th horizontal stripe (counting from 0), in the last, highest resolution
        striped frame. */
-    processFrame(mode, doneCallback) {
+    processFrame(img, mode) {
         /* determines which property of outputRasterCell we write into. If mode
            is 'vertical', we write the 'x' component. If it's horizontal, 'y' */
         var outputProp = mode === 'vertical' ? 'x' : 'y';
@@ -290,14 +323,14 @@ export class StripeScan {
                 blackBit = 0;
             }
 
-            if (cameraPixel.r + cameraPixel.g + cameraPixel.b > 450) {
+            if (this.isBright(cameraPixel, outputRasterCell)) {
                 outputRasterCell[outputProp] = outputRasterCell[outputProp] << 1 | whiteBit;
             } else {
                 outputRasterCell[outputProp] = outputRasterCell[outputProp] << 1 | blackBit;
             }
         };
 
-        this.processEachCameraPixel(pixelCallback, doneCallback);
+        this.processEachCameraPixel(img, pixelCallback);
     }
 
     /* Grab an image from the camera server and invoke the callback on it */
@@ -322,13 +355,30 @@ export class StripeScan {
        stored in a temporary canvas that is overwritten with each frame.
        The projector-space position of each pixel is stored in the output
        canvas. */
-    paintAndProcessStripes(n, mode, doneCallback) {
+    processImages(mode) {
+        var array = mode === 'vertical' ? this.vertStripeImages : this.horizStripeImages;
+        _.each(array, (img) => {
+            console.log('process', img, mode);
+            this.processFrame(img, mode);
+        });
+    }
+
+    grabImages(doneCallback) {
+        this.grabImagesWithMode(this.numSteps, 'vertical', this.vertStripeImages, () => {
+            this.grabImagesWithMode(this.numSteps, 'horizontal', this.horizStripeImages, doneCallback);
+        });
+    }
+
+    grabImagesWithMode(n, mode, imageArray, doneCallback) {
         if (n > 0) {
             var numStripes = Math.pow(2, (this.numSteps-n+1));
+            console.log('stripes', numStripes);
             this.paintStripes(numStripes, mode);
-            this.processFrame(mode, () => this.paintAndProcessStripes(n-1, mode, doneCallback));
-        }
-        else {
+            this.grabCameraImage((img) => {
+                imageArray.push(img);
+                this.grabImagesWithMode(n-1, mode, imageArray, doneCallback);
+            });
+        } else {
             this.invoke(doneCallback);
         }
     }

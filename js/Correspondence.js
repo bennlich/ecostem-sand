@@ -34,8 +34,8 @@ export class Correspondence {
             this.doDiff();
             this.paintDiff(screenCanvas);
 
-            var patchWidth = screenCanvas.width / 128;
-            var patchHeight = screenCanvas.height / 128;
+            var patchWidth = screenCanvas.width / this.dataSize;
+            var patchHeight = screenCanvas.height / this.dataSize;
 
             // TODO: temporary poor-man "patch inspector"
             $(screenCanvas).on('click', (e) => {
@@ -52,8 +52,9 @@ export class Correspondence {
 
     /* Compute the before/after differences. */
     doDiff() {
-        for (var x = 0; x < this.dataSize; ++x) {
-            for (var y = 0; y < this.dataSize; ++y) {
+        var x,y;
+        for (x = 0; x < this.dataSize; ++x) {
+            for (y = 0; y < this.dataSize; ++y) {
                 var moundData = this.moundData.data[x][y],
                     flatData = this.flatData.data[x][y],
                     diffData = this.diffData.data[x][y];
@@ -65,20 +66,22 @@ export class Correspondence {
                    on any axis. For our current experiments, these are extreme
                    enough differences, and indicate errors.
                    TODO: fixed heuristic; make it dynamic. */
-                if (Math.abs(diffY) + Math.abs(diffX) > 80) {
+                   /*
+                if (Math.abs(diffY) + Math.abs(diffX) > 200) {
                     diffX = 0;
                     diffY = 0;
-                }
+                }*/
 
                 diffData.x = diffX;
                 diffData.y = diffY;
+
             }
         }
-
+        return;
         /* Now that we chopped off the extreme differences (set the diffs to 0)
            we fill them back in using an average of the neighboring patches. */
-        for (var x = 0; x < this.dataSize; ++x) {
-            for (var y = 0; y < this.dataSize; ++y) {
+        for (x = 0; x < this.dataSize; ++x) {
+            for (y = 0; y < this.dataSize; ++y) {
                 var diffData = this.diffData.data[x][y];
 
                 if (diffData.x === 0 && diffData.y === 0) {
@@ -107,7 +110,7 @@ export class Correspondence {
 
     /* Paint the differences onto a canvas. */
     paintDiff(canvas) {
-        var colors = Gradient.gradient('#3d5a99', '#b03333', 30);
+        var colors = Gradient.gradient('#3d5a99', '#b03333', 100);
         var ctx = canvas.getContext('2d');
 
         var patchWidth = canvas.width / this.dataSize;
@@ -164,7 +167,12 @@ export class Correspondence {
                            pixel in the iteration wins.
 
                            TODO: We need to do something much smarter here. */
-                        raster[x][y] = {x:i, y:j};
+//                        var r = raster[x][y];
+//                        if (!r.set) {
+                        raster[x][y] = {x:i, y:j, set:true};
+//                        } else {
+
+//                        }
                     }
                 }
             }

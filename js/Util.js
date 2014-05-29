@@ -85,7 +85,7 @@ class RealImageLoader {
                     errorCallback();
                 }
             }
-        }, 1000);
+        }, 3000);
     }
 
     loadIntoCanvasCtx(url, ctx) {
