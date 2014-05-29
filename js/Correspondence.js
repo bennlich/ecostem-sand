@@ -38,8 +38,11 @@ export class Correspondence {
                TODO: invoke callback instead. */
             this.doDiff();
             this.removeOutlierCells();
-            this.paintDiff(screenCanvas);
-
+            if (typeof callback === 'function') {
+                callback(this.diffData);
+            }
+            //this.paintDiff(screenCanvas);
+            /*
             var patchWidth = screenCanvas.width / this.dataWidth;
             var patchHeight = screenCanvas.height / this.dataHeight;
 
@@ -51,6 +54,7 @@ export class Correspondence {
                 console.log('mound', this.moundData.data[x][y].x, this.moundData.data[x][y].y);
                 console.log('diff', this.diffData.data[x][y].x, this.diffData.data[x][y].y);
             });
+            */
             //callback();
         },
         errorCallback);

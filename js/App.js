@@ -9,12 +9,60 @@ import {RemoteBBoxSampler} from '../st-api/RemoteBBoxSampler';
 import {Evented} from '../st-api/ModelingCore/Evented';
 
 import {ModelBBox} from '../st-api/ModelingCore/ModelBBox';
-import {ScanElevationModel} from '../st-api/Models/ScanElevationModel';
 import {ElevationPatchRenderer} from '../st-api/Models/ElevationModel';
 import {ModelTileRenderer} from '../st-api/ModelingCore/ModelTileRenderer';
 import {ModelTileServer} from '../st-api/ModelTileServer';
 
+import {BaseModel} from '../st-api/ModelingCore/BaseModel';
+import {PatchRenderer} from '../st-api/ModelingCore/PatchRenderer';
+
 import {Correspondence} from './Correspondence';
+
+import {Gradient} from '../st-api/Util/Gradient';
+
+class ScanElevationModel extends BaseModel {
+    constructor(xs, ys, geometry, modelPool) {
+        super(xs, ys, geometry, modelPool);
+        this.init({elevation:0});
+
+        this.min = 1000000;
+        this.max = -1000000;
+    }
+    loadFromRaster(raster) {
+        console.log(raster);
+        if (raster.width !== this.xSize || raster.height !== this.ySize) {
+            console.error('raster differs from model', raster.width, raster.height, this.xSize, this.ySize);
+        }
+        for (var i = 0; i < this.xSize; ++i) {
+            for (var j = 0; j < this.ySize; ++j) {
+                var patch = raster.data[i][j];
+                var elev = Math.abs(patch.x)+Math.abs(patch.y);
+
+                this.world[i][j].elevation = elev;
+                if (elev < this.min) {
+                    this.min = elev;
+                }
+                if (elev > this.max) {
+                    this.max = elev;
+                }
+            }
+        }
+        console.log(this.min, this.max);
+    }
+}
+
+class ScanElevationPatchRenderer extends PatchRenderer {
+    constructor(elevModel) {
+        super();
+        this.model = elevModel;
+        this.patchField = 'elevation';
+        this.zeroValue = undefined;
+    }
+    color(value) {
+        var variance = this.model.max - this.model.min;
+        return Gradient.hsvToRgb((value/variance)*0.9, 1, 1);
+    }
+}
 
 class Application extends Evented {
     constructor() {
@@ -40,11 +88,11 @@ class Application extends Evented {
         this.modelPool = new ModelPool(this.map);
 
         var elevModel = this.modelPool.getModel('Elevation');
-        var waterModel = this.modelPool.getModel('Water Flow');
+        this.waterModel = this.modelPool.getModel('Water Flow');
 
         this.map.toggleLayer({
             on: false,
-            leafletLayer: waterModel.renderer.makeLayer({zIndex:20, opacity:0.85})
+            leafletLayer: this.waterModel.renderer.makeLayer({zIndex:20, opacity:0.85})
         });
 
         this.animator = new Animator(this.modelPool);
@@ -67,6 +115,38 @@ class Application extends Evented {
         });
     }
 
+    updateScanElevation(diffData) {
+        if (this.elevModel) {
+            this.elevModel.dataModel.loadFromRaster(diffData);
+            this.waterModel.dataModel.sampleElevationFromModel(this.elevModel.dataModel);
+            this.elevationModel.fire('change');
+            return;
+        }
+
+        var width = diffData.width,
+            height = diffData.height,
+            bbox = new ModelBBox(this.map.leafletMap.getBounds(), this.map.leafletMap),
+            model = new ScanElevationModel(width, height, bbox, this.modelPool),
+            patchRenderer = new ScanElevationPatchRenderer(model),
+            tileRenderer = new ModelTileRenderer(this.map, model, patchRenderer),
+            tileServer = new ModelTileServer(tileRenderer);
+
+        var modelObject = {
+            name: name,
+            dataModel: model,
+            renderer: tileRenderer,
+            server: tileServer,
+            uiOpts : { canPaint: false }
+        };
+
+        model.loadFromRaster(diffData);
+        this.waterModel.dataModel.sampleElevationFromModel(model);
+
+        this.addModelLayer(modelObject);
+
+        this.elevModel = model;
+    }
+
     flatScan(canvas) {
         this.correspondence.flatScan(canvas, () => {
             this.fire('flat-scan-done');
@@ -74,8 +154,10 @@ class Application extends Evented {
             this.fire('error', 'Could not load camera frame.');
         });
     }
+
     moundScan(canvas) {
-        this.correspondence.moundScan(canvas, () => {
+        this.correspondence.moundScan(canvas, (diffRaster) => {
+            this.updateScanElevation(diffRaster);
             this.fire('mound-scan-done');
         }, () => {
             this.fire('error', 'Could not load camera frame.');
@@ -150,7 +232,8 @@ var scanUI = React.createClass({
         this.id = 'scan';
         app.on('flat-scan-start', () => this.startFlatScan());
         app.on('mound-scan-start', () => this.startMoundScan());
-        app.on('flat-scan-done', () => this.setState({active:true}));
+        app.on('flat-scan-done', () => this.setState({active:false}));
+        app.on('mound-scan-done', () => this.setState({active:false}));
         return { active: false };
     },
     getCanvas: function() {
@@ -172,9 +255,8 @@ var scanUI = React.createClass({
         app.moundScan(this.getCanvas());
     },
     render: function() {
-        return D.div(
-            {className: 'canvas-container'},
-            this.state.active ? D.canvas({id:this.id, ref:this.id}) : null
+        return D.div({},
+            this.state.active ? D.div({className: 'canvas-container'}, D.canvas({id:this.id, ref:this.id})) : null
         );
     }
 });
