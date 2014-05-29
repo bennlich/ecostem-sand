@@ -19,9 +19,9 @@ class OutputRaster extends Raster {
 
     pixelRenderer(rasterCell) {
         return {
-            r: rasterCell.x,
-            g: 0,
-            b: rasterCell.y,
+            r: (rasterCell.x >> 4) & 0xff,
+            g: (rasterCell.x & 0xf) | ((rasterCell.y >> 4) & 0xff),
+            b: rasterCell.y & 0xff,
             a: rasterCell.enabled ? 255 : 0
         };
     }
@@ -62,7 +62,6 @@ class OutputRaster extends Raster {
                 }
             }
         }
-
 
         // temporary to cut out mirror reflection from the test pictures
 
@@ -119,7 +118,7 @@ export class StripeScan {
         this.cameraCtx = cameraCanvas.getContext('2d');
     }
 
-    scan(canvas, doneCallback, errorCallback) {
+    scan(numFrames, canvas, doneCallback, errorCallback) {
         this.screenCanvas = canvas;
         this.screenCtx = canvas.getContext('2d');
         this.errorCallback = errorCallback;
@@ -127,43 +126,40 @@ export class StripeScan {
         /* Grab an image just to get dimensions */
         this.grabCameraImage((img) => {
             this.init(img.width, img.height);
-            /* numSteps is how many level of stripes to flash. numSteps == 7
-            would mean the finest level will display 2^7 = 128 stripes, giving
-            a resolution of 128 x 128 for the correspondence raster. */
-            this.numSteps = 7;
+            /* numFrames is how many level of stripes to flash. numFrames == 7
+               would mean the finest level will display 2^7 = 128 stripes, giving
+               a resolution of 128 x 128 for the correspondence raster. */
+            this.numFrames = numFrames;
 
             this.grabImages(() => {
                 this.computeMinMax();
                 this.processImages('vertical');
                 this.processImages('horizontal');
                 this.outputRaster.disableLowVariancePixels();
-                this.renderOutputCanvas();
-                this.invoke(doneCallback, this.outputCanvas);
+                this.invoke(doneCallback, this.outputRaster);
             });
-            /*
-            this.computeMinMax(() => {
-                this.paintAndProcessStripes(this.numSteps, 'vertical', () => {
-                    this.paintAndProcessStripes(this.numSteps, 'horizontal', () => {
-                        this.outputRaster.disableLowVariancePixels();
-                        this.renderOutputCanvas();
-                        this.invoke(doneCallback, this.outputCanvas);
-                    });
-                });
-            });*/
         });
     }
 
+    /* Pre-compute min/max/variance for the brightness of each pixel across all frames.
+       This will be used by isBright below, for a dynamic per-pixel brightness estimate.
+       It will also be used by outputRaster.disableLowVariancePixels to chop off
+       pixels outside the active area. */
     computeMinMax() {
         var pixelCallback = (pixel, rasterCell) => {
             var value = pixel.r + pixel.g + pixel.b;
+
             if (value > rasterCell.max) {
                 rasterCell.max = value;
             }
+
             if (value < rasterCell.min) {
                 rasterCell.min = value;
             }
+
             rasterCell.variance = rasterCell.max - rasterCell.min;
         };
+
         _.each(this.vertStripeImages, (img) => this.processEachCameraPixel(img, pixelCallback));
         _.each(this.horizStripeImages, (img) => this.processEachCameraPixel(img, pixelCallback));
     }
@@ -171,7 +167,8 @@ export class StripeScan {
     isBright(pixel, rasterCell) {
         var variance = rasterCell.max - rasterCell.min;
         var val = pixel.r + pixel.g + pixel.b;
-
+        /* the threshold between "bright" and "dark" is the halfway point
+           between the pixel's min and max across all frames. */
         return val > rasterCell.min + variance/2;
     }
 
@@ -348,13 +345,13 @@ export class StripeScan {
         );
     }
 
-    /* Take the number of striped frames you want to run, the mode which
+    /* Take the mode which
        determines if the sequence will be vertical or horizontal stripes,
        and label each pixel with its location in projector space (in terms
        of which horizontal and vertical stripe it blongs to). Images are
        stored in a temporary canvas that is overwritten with each frame.
        The projector-space position of each pixel is stored in the output
-       canvas. */
+       raster. */
     processImages(mode) {
         var array = mode === 'vertical' ? this.vertStripeImages : this.horizStripeImages;
         _.each(array, (img) => {
@@ -363,19 +360,25 @@ export class StripeScan {
         });
     }
 
+    /* Grabs all the images from the camera server and stores the vertical stripe
+       images in this.vertStripeImages and the horizontal ones in this.horizStripeImages. */
     grabImages(doneCallback) {
-        this.grabImagesWithMode(this.numSteps, 'vertical', this.vertStripeImages, () => {
-            this.grabImagesWithMode(this.numSteps, 'horizontal', this.horizStripeImages, doneCallback);
+        this.grabImagesWithMode(this.numFrames, 'vertical', this.vertStripeImages, () => {
+            this.grabImagesWithMode(this.numFrames, 'horizontal', this.horizStripeImages, doneCallback);
         });
     }
 
+    /* The meat of the method above. */
     grabImagesWithMode(n, mode, imageArray, doneCallback) {
         if (n > 0) {
-            var numStripes = Math.pow(2, (this.numSteps-n+1));
-            console.log('stripes', numStripes);
+            var numStripes = Math.pow(2, (this.numFrames-n+1));
+            /* Paint the stripes on the full-screen canvas. */
             this.paintStripes(numStripes, mode);
+            /* Grab the camera image of those stripes. */
             this.grabCameraImage((img) => {
+                /* Store it in its appropriate array -- order is totally important. */
                 imageArray.push(img);
+                /* Recurse next step. */
                 this.grabImagesWithMode(n-1, mode, imageArray, doneCallback);
             });
         } else {
