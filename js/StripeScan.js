@@ -20,7 +20,7 @@ class OutputRaster extends Raster {
     pixelRenderer(rasterCell) {
         return {
             r: (rasterCell.x >> 4) & 0xff,
-            g: (rasterCell.x & 0xf) | ((rasterCell.y >> 4) & 0xff),
+            g: ((rasterCell.x << 4) & 0xf0) | ((rasterCell.y >> 8) & 0x0f),
             b: rasterCell.y & 0xff,
             a: rasterCell.enabled ? 255 : 0
         };

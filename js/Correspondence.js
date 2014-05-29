@@ -126,7 +126,6 @@ export class Correspondence {
 
     /* Paint the differences onto a canvas. */
     paintDiff(canvas) {
-        var colors = Gradient.gradient('#3d5a99', '#b03333', 100);
         var ctx = canvas.getContext('2d');
 
         var patchWidth = canvas.width / this.dataSize;
@@ -135,17 +134,38 @@ export class Correspondence {
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        for (var x = 0; x < this.dataSize; ++x) {
-            for (var y = 0; y < this.dataSize; ++y) {
-                var patch = this.diffData.data[x][y];
+        var x,y,patch,
+            min = 1000000,
+            max = -1000000,
+            diffValue;
+
+        /* compute the min and max, so we can map it to 0-1 values in the
+           hsv color space */
+        for (x = 0; x < this.dataSize; ++x) {
+            for (y = 0; y < this.dataSize; ++y) {
+                patch = this.diffData.data[x][y];
+                diffValue = Math.abs(patch.x)+Math.abs(patch.y);
+
+                if (diffValue > max) {
+                    max = diffValue;
+                }
+
+                if (diffValue < min) {
+                    min = diffValue;
+                }
+            }
+        }
+
+        var variance = max - min;
+
+        for (x = 0; x < this.dataSize; ++x) {
+            for (y = 0; y < this.dataSize; ++y) {
+                patch = this.diffData.data[x][y];
 
                 /* For now we just add together the x- and y-differences */
-                var idx = Math.abs(patch.x)+Math.abs(patch.y);
+                diffValue = Math.abs(patch.x)+Math.abs(patch.y);
 
-                if (idx >= colors.length)
-                    idx = colors.length-1;
-
-                ctx.fillStyle = colors[idx];
+                ctx.fillStyle = Gradient.hsvToRgb((diffValue/variance)*0.9, 1, 1);
                 ctx.fillRect(
                     x * patchWidth,
                     y * patchHeight,
