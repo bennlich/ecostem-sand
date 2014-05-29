@@ -62,6 +62,11 @@ export class Correspondence {
                 var diffX = moundData.x - flatData.x;
                 var diffY = moundData.y - flatData.y;
 
+                if (moundData.x === 0 && moundData.y === 0) {
+                    diffX = 0;
+                    diffY = 0;
+                }
+
                 /* Simply chop off differences bigger than 120 pixels
                    on any axis. For our current experiments, these are extreme
                    enough differences, and indicate errors.
@@ -75,6 +80,29 @@ export class Correspondence {
                 diffData.x = diffX;
                 diffData.y = diffY;
 
+            }
+        }
+        for (x = 0; x < this.dataSize; ++x) {
+            for (y = 0; y < this.dataSize; ++y) {
+                var diffData = this.diffData.data[x][y];
+                var neighbors = this.diffData.neighbors(x,y);
+                var sumX = 0, sumY = 0,
+                    actualSumX = 0, actualSumY = 0;
+                    n = 0;
+                _.each(neighbors, (neighbor) => {
+                    var nx = neighbor.x || 0;
+                    var ny = neighbor.y || 0;
+                    actualSumX += nx;
+                    actualSumY += ny;
+                    if (Math.abs(nx) + Math.abs(ny) > (2 * Math.abs(diffData.x) + Math.abs(diffData.y))
+                     || Math.abs(nx) + Math.abs(ny) < (0.5 * Math.abs(diffData.x) + Math.abs(diffData.y))) {
+                         n++;
+                     }
+                });
+                if (neighbors.length === n) {
+                    diffData.x = Math.floor(actualSumX/n.length);
+                    diffData.y = Math.floor(actualSumY/n.length);
+                }
             }
         }
         return;
@@ -133,8 +161,8 @@ export class Correspondence {
                 ctx.fillRect(
                     x * patchWidth,
                     y * patchHeight,
-                    x * patchWidth + patchWidth,
-                    y * patchHeight + patchHeight
+                    patchWidth + 1,
+                    patchHeight + 1
                 );
             }
         }

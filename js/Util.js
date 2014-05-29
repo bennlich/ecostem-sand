@@ -97,8 +97,8 @@ class RealImageLoader {
     }
 }
 
-//export var ImageLoader = ImageLoaderTestDummy;
-export var ImageLoader = RealImageLoader;
+export var ImageLoader = ImageLoaderTestDummy;
+//export var ImageLoader = RealImageLoader;
 
 /* Simple 2d raster. TODO: Should technically be a model, I think. */
 export class Raster {
