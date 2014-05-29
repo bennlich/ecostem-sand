@@ -13,21 +13,25 @@ export class Correspondence {
 
            TODO: The dependency between raster size and the number of frames
            projected by StripeScan needs to be made explicit. */
-        this.numFrames = 7;
-        this.dataSize = Math.pow(2, this.numFrames);
-        this.flatData = new Raster(this.dataSize, this.dataSize, {x:0, y:0});
-        this.moundData = new Raster(this.dataSize, this.dataSize, {x:0, y:0});
-        this.diffData = new Raster(this.dataSize, this.dataSize, {x:0, y:0});
+        this.vertFrames = 8;
+        this.horizFrames = 7;
+        this.dataWidth = Math.pow(2, this.vertFrames);
+        this.dataHeight = Math.pow(2, this.horizFrames);
+        this.flatData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
+        this.moundData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
+        this.diffData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
     }
 
     /* Perform a "before" scan */
     flatScan(screenCanvas, callback, errorCallback) {
+        this.flatData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
         this.doScan(screenCanvas, this.flatData.data, callback, errorCallback);
     }
 
     /* Perform an "after" scan -- after say, the sand has changed, or a new
        object has been introduced into the projected frame. */
     moundScan(screenCanvas, callback, errorCallback) {
+        this.moundData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
         this.doScan(screenCanvas, this.moundData.data, () => {
 
             /* Just paint and show the canvas for now.
@@ -36,8 +40,8 @@ export class Correspondence {
             this.removeOutlierCells();
             this.paintDiff(screenCanvas);
 
-            var patchWidth = screenCanvas.width / this.dataSize;
-            var patchHeight = screenCanvas.height / this.dataSize;
+            var patchWidth = screenCanvas.width / this.dataWidth;
+            var patchHeight = screenCanvas.height / this.dataHeight;
 
             // TODO: temporary poor-man "patch inspector"
             $(screenCanvas).on('click', (e) => {
@@ -55,8 +59,9 @@ export class Correspondence {
     /* Compute the before/after differences. Subtracts flatData from moundData
        pointwise and stores the results in this.diffData */
     doDiff() {
-        for (var x = 0; x < this.dataSize; ++x) {
-            for (var y = 0; y < this.dataSize; ++y) {
+        this.diffData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
+        for (var x = 0; x < this.dataWidth; ++x) {
+            for (var y = 0; y < this.dataHeight; ++y) {
                 var moundData = this.moundData.data[x][y],
                     flatData = this.flatData.data[x][y],
                     diffData = this.diffData.data[x][y];
@@ -88,11 +93,13 @@ export class Correspondence {
        cells around it. This would be the equivalent of a pin,
        or a very thin object, gaining height in the scene. */
     removeOutlierCells() {
-        for (var x = 0; x < this.dataSize; ++x) {
-            for (var y = 0; y < this.dataSize; ++y) {
+        for (var x = 0; x < this.dataWidth; ++x) {
+            for (var y = 0; y < this.dataHeight; ++y) {
                 var diffData = this.diffData.data[x][y],
                     neighbors = this.diffData.neighbors(x,y),
-                    sumX = 0, sumY = 0, n = 0,
+                    smallerSumX = 0, smallerSumY = 0,
+                    biggerSumX = 0, biggerSumY = 0,
+                    smallerN = 0, biggerN = 0,
                     diffWeight = Math.abs(diffData.x) + Math.abs(diffData.y);
 
                 _.each(neighbors, (neighbor) => {
@@ -107,18 +114,25 @@ export class Correspondence {
                     var neighborWeight = Math.abs(nx) + Math.abs(ny);
 
                     /* We define "significantly different" as being 1.5 times bigger in amplitude/weight. */
-                    if (neighborWeight > (1.5 * diffWeight) || neighborWeight < (1/1.5 * diffWeight)) {
-                        sumX += nx;
-                        sumY += ny;
-                        n++;
+                    if (neighborWeight > (2 * diffWeight)) {
+                        biggerSumX += nx;
+                        biggerSumY += ny;
+                        biggerN++;
+                    } else if (diffWeight > (2 * neighborWeight)){
+                        smallerSumX += nx;
+                        smallerSumY += ny;
+                        smallerN++;
                     }
                 });
 
                 /* If more than 3/4 of the neighbors are significantly different, we set this cell
                    to the average of the neighbors' values. */
-                if (n > neighbors.length * 3/4) {
-                    diffData.x = Math.floor(sumX/n);
-                    diffData.y = Math.floor(sumY/n);
+                if (smallerN >= neighbors.length * 5/8) {
+                    diffData.x = Math.floor(smallerSumX/smallerN);
+                    diffData.y = Math.floor(smallerSumY/smallerN);
+                } else if (biggerN >= neighbors.length * 5/8) {
+                    diffData.x = Math.floor(biggerSumX/biggerN);
+                    diffData.y = Math.floor(biggerSumY/biggerN);
                 }
             }
         }
@@ -128,8 +142,8 @@ export class Correspondence {
     paintDiff(canvas) {
         var ctx = canvas.getContext('2d');
 
-        var patchWidth = canvas.width / this.dataSize;
-        var patchHeight = canvas.height / this.dataSize;
+        var patchWidth = canvas.width / this.dataWidth;
+        var patchHeight = canvas.height / this.dataHeight;
 
         ctx.fillStyle = 'white';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -141,8 +155,8 @@ export class Correspondence {
 
         /* compute the min and max, so we can map it to 0-1 values in the
            hsv color space */
-        for (x = 0; x < this.dataSize; ++x) {
-            for (y = 0; y < this.dataSize; ++y) {
+        for (x = 0; x < this.dataWidth; ++x) {
+            for (y = 0; y < this.dataHeight; ++y) {
                 patch = this.diffData.data[x][y];
                 diffValue = Math.abs(patch.x)+Math.abs(patch.y);
 
@@ -158,8 +172,8 @@ export class Correspondence {
 
         var variance = max - min;
 
-        for (x = 0; x < this.dataSize; ++x) {
-            for (y = 0; y < this.dataSize; ++y) {
+        for (x = 0; x < this.dataWidth; ++x) {
+            for (y = 0; y < this.dataHeight; ++y) {
                 patch = this.diffData.data[x][y];
 
                 /* For now we just add together the x- and y-differences */
@@ -212,6 +226,6 @@ export class Correspondence {
                 callback();
             }
         };
-        this.stripeScan.scan(this.numFrames, screenCanvas, scanCallback, errorCallback);
+        this.stripeScan.scan(this.vertFrames, this.horizFrames, screenCanvas, scanCallback, errorCallback);
     }
 }

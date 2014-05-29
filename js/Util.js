@@ -1,4 +1,8 @@
 
+/* Dummy image loader that loads the pre-shot images from img/scantest.
+   This is a drop-in from the image loader and doesn't require any
+   changes to the client code. However, it makes assumptions about
+   the setup in Correspondence.js. */
 class ImageLoaderTestDummy {
     constructor() {
         this.imageLoader = new RealImageLoader();
@@ -6,6 +10,11 @@ class ImageLoaderTestDummy {
         this.stage = 'before';
         this.step = 1;
         this.mode = 'v';
+
+        /* Assumption: This has to be the same as 'vertFrames' in Correspondence.js */
+        this.vertSteps = 8;
+        /* Assumption: This has to be the same as 'horizFrames' in Correspondence.js */
+        this.horizSteps = 7;
     }
 
     _doDummyFrame(callback) {
@@ -33,7 +42,8 @@ class ImageLoaderTestDummy {
         console.log('loading', url);
         this.imageLoader.load(url, callback);
         this.step++;
-        if (this.step > 7) {
+
+        if ((this.mode === 'v' && this.step > this.vertSteps) || (this.mode === 'h' && this.step > this.horizSteps)) {
             if (this.mode === 'h') {
                 this._flipStage();
                 this.init = false;

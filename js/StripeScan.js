@@ -18,6 +18,21 @@ class OutputRaster extends Raster {
     }
 
     pixelRenderer(rasterCell) {
+        /* We render the x,y values in the r/g/b channels like this. We assume
+           we only use 12 bits of x and y. (This is only a limitation for this
+           rendering-data-in-pixels scheme, not otherwise.) So:
+             x = |0|x1|x2|x3|
+             y = |0|y1|y2|y3|
+           where each x1..3 and y1..3 denote a 4-bit part, and the most significant
+           4 bits are not used, marked 0.
+
+           Each pixel in a canvas is 32 bits, with 8 bits for each channel (red, green, blue, alpha).
+           We encode x,y in r/g/b as follows:
+
+           red:   |x1|x2|
+           green: |x3|y1|
+           blue:  |y2|y3|
+           alpha: 0 if disabled, 255 (full opacity) otherwise */
         return {
             r: (rasterCell.x >> 4) & 0xff,
             g: ((rasterCell.x << 4) & 0xf0) | ((rasterCell.y >> 8) & 0x0f),
@@ -118,7 +133,7 @@ export class StripeScan {
         this.cameraCtx = cameraCanvas.getContext('2d');
     }
 
-    scan(numFrames, canvas, doneCallback, errorCallback) {
+    scan(vertFrames, horizFrames, canvas, doneCallback, errorCallback) {
         this.screenCanvas = canvas;
         this.screenCtx = canvas.getContext('2d');
         this.errorCallback = errorCallback;
@@ -129,7 +144,8 @@ export class StripeScan {
             /* numFrames is how many level of stripes to flash. numFrames == 7
                would mean the finest level will display 2^7 = 128 stripes, giving
                a resolution of 128 x 128 for the correspondence raster. */
-            this.numFrames = numFrames;
+            this.vertFrames = vertFrames;
+            this.horizFrames = horizFrames;
 
             this.grabImages(() => {
                 this.computeMinMax();
@@ -363,15 +379,16 @@ export class StripeScan {
     /* Grabs all the images from the camera server and stores the vertical stripe
        images in this.vertStripeImages and the horizontal ones in this.horizStripeImages. */
     grabImages(doneCallback) {
-        this.grabImagesWithMode(this.numFrames, 'vertical', this.vertStripeImages, () => {
-            this.grabImagesWithMode(this.numFrames, 'horizontal', this.horizStripeImages, doneCallback);
+        this.grabImagesWithMode(this.vertFrames, 'vertical', this.vertStripeImages, () => {
+            this.grabImagesWithMode(this.horizFrames, 'horizontal', this.horizStripeImages, doneCallback);
         });
     }
 
     /* The meat of the method above. */
     grabImagesWithMode(n, mode, imageArray, doneCallback) {
         if (n > 0) {
-            var numStripes = Math.pow(2, (this.numFrames-n+1));
+            var numFrames = mode === 'vertical' ? this.vertFrames : this.horizFrames;
+            var numStripes = Math.pow(2, (numFrames-n+1));
             /* Paint the stripes on the full-screen canvas. */
             this.paintStripes(numStripes, mode);
             /* Grab the camera image of those stripes. */
