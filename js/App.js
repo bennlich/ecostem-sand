@@ -119,7 +119,7 @@ class Application extends Evented {
         if (this.elevModel) {
             this.elevModel.dataModel.loadFromRaster(diffData);
             this.waterModel.dataModel.sampleElevationFromModel(this.elevModel.dataModel);
-            this.elevationModel.fire('change');
+            this.elevModel.dataModel.fire('change', this.elevModel.dataModel.world);
             return;
         }
 
@@ -144,7 +144,7 @@ class Application extends Evented {
 
         this.addModelLayer(modelObject);
 
-        this.elevModel = model;
+        this.elevModel = modelObject;
     }
 
     flatScan(canvas) {
@@ -157,6 +157,7 @@ class Application extends Evented {
 
     moundScan(canvas) {
         this.correspondence.moundScan(canvas, (diffRaster) => {
+            console.log('here');
             this.updateScanElevation(diffRaster);
             this.fire('mound-scan-done');
         }, () => {
@@ -232,7 +233,7 @@ var scanUI = React.createClass({
         this.id = 'scan';
         app.on('flat-scan-start', () => this.startFlatScan());
         app.on('mound-scan-start', () => this.startMoundScan());
-        app.on('flat-scan-done', () => this.setState({active:false}));
+        app.on('flat-scan-done', () => this.setState({active:true}));
         app.on('mound-scan-done', () => this.setState({active:false}));
         return { active: false };
     },

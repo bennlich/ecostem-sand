@@ -56,7 +56,9 @@ class ImageLoaderTestDummy {
 
 /* Simple utility that can load a remote image and invoke a user callback on it */
 class RealImageLoader {
-    constructor() {}
+    constructor() {
+        this.token = 1;
+    }
 
     load(url, callback, errorCallback) {
         var img = new Image();
@@ -86,7 +88,7 @@ class RealImageLoader {
         };
 
         loading = true;
-        img.src = url;
+        img.src = url + '?token=' + this.token++;
 
         timeout = setTimeout(() => {
             if (loading) {
@@ -95,7 +97,7 @@ class RealImageLoader {
                     errorCallback();
                 }
             }
-        }, 3000);
+        }, 2000);
     }
 
     loadIntoCanvasCtx(url, ctx) {
@@ -107,19 +109,21 @@ class RealImageLoader {
     }
 }
 
-export var ImageLoader = ImageLoaderTestDummy;
-//export var ImageLoader = RealImageLoader;
+//export var ImageLoader = ImageLoaderTestDummy;
+export var ImageLoader = RealImageLoader;
 
 /* Simple 2d raster. TODO: Should technically be a model, I think. */
 export class Raster {
     constructor(width,height,initValue) {
         this.width = width;
         this.height = height;
+        this.initValue = initValue;
 
         this.data = new Array(width);
 
         for (var x = 0; x < this.width; ++x) {
             this.data[x] = new Array(height);
+
             for (var y = 0; y < this.height; ++y) {
                 this.data[x][y] = _.extend({}, initValue);
             }
@@ -128,6 +132,14 @@ export class Raster {
 
     /* subclass this */
     pixelRenderer(rasterCell) { return {r:0, g: 0, b: 0, a: 255}; }
+
+    reset() {
+        for (var x = 0; x < this.width; ++x) {
+            for (var y = 0; y < this.height; ++y) {
+                this.data[x][y] = _.extend({}, this.initValue);
+            }
+        }
+    }
 
     renderInCanvas(canvas) {
         canvas.width = this.width;

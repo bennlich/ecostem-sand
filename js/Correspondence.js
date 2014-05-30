@@ -1,52 +1,59 @@
 
-import {Gradient} from '../st-api/Util/Gradient';
 import {Raster} from './Util';
+import {DiffRaster} from './DiffRaster';
 import {StripeScan} from './StripeScan';
 
 /* Computes a projector-camera correspondence and can paint it on a canvas */
 export class Correspondence {
     constructor() {
         this.stripeScan = new StripeScan();
-        /* All the data will be 128x128 in size. This is in tight inter-dependence
-           with the fact that StripeScan will project 7 frames (meaning 128 stripes)
-           on the last frame.
 
-           TODO: The dependency between raster size and the number of frames
-           projected by StripeScan needs to be made explicit. */
+        /* All the data will be 2^vertFrames x 2^horizFrames in size. This is in tight
+           inter-dependence with the fact that StripeScan will project vertFrames
+           vertical-striped frames and horizFrames horizontal-striped frames. */
         this.vertFrames = 8;
         this.horizFrames = 7;
+
         this.dataWidth = Math.pow(2, this.vertFrames);
         this.dataHeight = Math.pow(2, this.horizFrames);
+
         this.flatData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
         this.moundData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
-        this.diffData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
+        this.diffData = new DiffRaster(this.dataWidth, this.dataHeight, {x:0, y:0});
     }
 
     /* Perform a "before" scan */
     flatScan(screenCanvas, callback, errorCallback) {
-        this.flatData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
+        this.flatData.reset();
         this.doScan(screenCanvas, this.flatData.data, callback, errorCallback);
     }
 
     /* Perform an "after" scan -- after say, the sand has changed, or a new
        object has been introduced into the projected frame. */
     moundScan(screenCanvas, callback, errorCallback) {
-        this.moundData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
+        this.moundData.reset();
         this.doScan(screenCanvas, this.moundData.data, () => {
-
             /* Just paint and show the canvas for now.
                TODO: invoke callback instead. */
-            this.doDiff();
-            this.removeOutlierCells();
-            if (typeof callback === 'function') {
-                callback(this.diffData);
-            }
-            //this.paintDiff(screenCanvas);
-            /*
+            this.diffData.doDiff(this.flatData, this.moundData);
+            console.log('done diff');
+            this.diffData.removeOutlierCells();
+            console.log('done outlier');
+            //if (typeof callback === 'function') {
+            //    callback(this.diffData);
+            //}
+            //return;
+
+            this.diffData.paintDiff(screenCanvas);
+            console.log('done painting');
+
             var patchWidth = screenCanvas.width / this.dataWidth;
             var patchHeight = screenCanvas.height / this.dataHeight;
 
-            // TODO: temporary poor-man "patch inspector"
+            /* This is a temporary poor-man "patch inspector"
+               Lets you click on a diff patch/cell and see its corresponding data
+               in the console.
+               TODO: disable this eventually. */
             $(screenCanvas).on('click', (e) => {
                 var x = Math.floor(e.clientX / patchWidth);
                 var y = Math.floor(e.clientY / patchHeight);
@@ -54,144 +61,10 @@ export class Correspondence {
                 console.log('mound', this.moundData.data[x][y].x, this.moundData.data[x][y].y);
                 console.log('diff', this.diffData.data[x][y].x, this.diffData.data[x][y].y);
             });
-            */
+
             //callback();
         },
         errorCallback);
-    }
-
-    /* Compute the before/after differences. Subtracts flatData from moundData
-       pointwise and stores the results in this.diffData */
-    doDiff() {
-        this.diffData = new Raster(this.dataWidth, this.dataHeight, {x:0, y:0});
-        for (var x = 0; x < this.dataWidth; ++x) {
-            for (var y = 0; y < this.dataHeight; ++y) {
-                var moundData = this.moundData.data[x][y],
-                    flatData = this.flatData.data[x][y],
-                    diffData = this.diffData.data[x][y];
-
-                /* straightforward pointwise diff */
-                var diffX = moundData.x - flatData.x;
-                var diffY = moundData.y - flatData.y;
-
-                /* if we recorded no moundData pixels (x == 0 and y == 0 is
-                   taken to mean "no mound data", set the diff to 0. This avoids
-                   strange high values of diff data in the shadows of objects, for example.
-
-                   TODO: use another marker (instead of x=0,y=0) to represent
-                   "no mound data" */
-                if (moundData.x === 0 && moundData.y === 0) {
-                    diffX = 0;
-                    diffY = 0;
-                }
-
-                diffData.x = diffX;
-                diffData.y = diffY;
-            }
-        }
-    }
-
-    /* Finds cells that are surrounded mostly by cells with significantly
-       different values. These are bound to be errors. It's highly that
-       a single cell would record a huge difference with no change in the
-       cells around it. This would be the equivalent of a pin,
-       or a very thin object, gaining height in the scene. */
-    removeOutlierCells() {
-        for (var x = 0; x < this.dataWidth; ++x) {
-            for (var y = 0; y < this.dataHeight; ++y) {
-                var diffData = this.diffData.data[x][y],
-                    neighbors = this.diffData.neighbors(x,y),
-                    smallerSumX = 0, smallerSumY = 0,
-                    biggerSumX = 0, biggerSumY = 0,
-                    smallerN = 0, biggerN = 0,
-                    diffWeight = Math.abs(diffData.x) + Math.abs(diffData.y);
-
-                _.each(neighbors, (neighbor) => {
-                    /* TODO: I'm not sure why neighbor.x and neighbor.y
-                       can show up NaN here. */
-                    var nx = neighbor.x || 0;
-                    var ny = neighbor.y || 0;
-
-                    /* We define "value" or "weight" of a cell by its
-                       absolute diff sum. We only care about the amplitude
-                       of its displacement, not the direction. */
-                    var neighborWeight = Math.abs(nx) + Math.abs(ny);
-
-                    /* We define "significantly different" as being 1.5 times bigger in amplitude/weight. */
-                    if (neighborWeight > (2 * diffWeight)) {
-                        biggerSumX += nx;
-                        biggerSumY += ny;
-                        biggerN++;
-                    } else if (diffWeight > (2 * neighborWeight)){
-                        smallerSumX += nx;
-                        smallerSumY += ny;
-                        smallerN++;
-                    }
-                });
-
-                /* If more than 3/4 of the neighbors are significantly different, we set this cell
-                   to the average of the neighbors' values. */
-                if (smallerN >= neighbors.length * 5/8) {
-                    diffData.x = Math.floor(smallerSumX/smallerN);
-                    diffData.y = Math.floor(smallerSumY/smallerN);
-                } else if (biggerN >= neighbors.length * 5/8) {
-                    diffData.x = Math.floor(biggerSumX/biggerN);
-                    diffData.y = Math.floor(biggerSumY/biggerN);
-                }
-            }
-        }
-    }
-
-    /* Paint the differences onto a canvas. */
-    paintDiff(canvas) {
-        var ctx = canvas.getContext('2d');
-
-        var patchWidth = canvas.width / this.dataWidth;
-        var patchHeight = canvas.height / this.dataHeight;
-
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        var x,y,patch,
-            min = 1000000,
-            max = -1000000,
-            diffValue;
-
-        /* compute the min and max, so we can map it to 0-1 values in the
-           hsv color space */
-        for (x = 0; x < this.dataWidth; ++x) {
-            for (y = 0; y < this.dataHeight; ++y) {
-                patch = this.diffData.data[x][y];
-                diffValue = Math.abs(patch.x)+Math.abs(patch.y);
-
-                if (diffValue > max) {
-                    max = diffValue;
-                }
-
-                if (diffValue < min) {
-                    min = diffValue;
-                }
-            }
-        }
-
-        var variance = max - min;
-
-        for (x = 0; x < this.dataWidth; ++x) {
-            for (y = 0; y < this.dataHeight; ++y) {
-                patch = this.diffData.data[x][y];
-
-                /* For now we just add together the x- and y-differences */
-                diffValue = Math.abs(patch.x)+Math.abs(patch.y);
-
-                ctx.fillStyle = Gradient.hsvToRgb((diffValue/variance)*0.9, 1, 1);
-                ctx.fillRect(
-                    x * patchWidth,
-                    y * patchHeight,
-                    patchWidth + 1,
-                    patchHeight + 1
-                );
-            }
-        }
     }
 
     /* Invokes a scan. The stripe frames will be painted in screenCanvas,
@@ -221,7 +94,8 @@ export class Correspondence {
                            pixel in the iteration wins.
 
                            TODO: We should do something much smarter here. */
-                        raster[x][y] = {x:i, y:j};
+                        if (!raster[x][y].set)
+                            raster[x][y] = {x:i, y:j, set:true};
                     }
                 }
             }

@@ -171,7 +171,7 @@ export class StripeScan {
             var ret;
 
             if (state === 0 || state === 1) {
-                ret = 'white';
+                ret = '#888';
                 state++;
             } else if (state === 2 || state === 3) {
                 ret = 'black';
@@ -263,7 +263,7 @@ export class StripeScan {
     grabCameraImage(callback) {
         /* Add a random element to the url to prevent the browser from
            returning a cached image. */
-        var serverUrl = this.server + '?x=' + Math.random();
+        var serverUrl = this.server;
         setTimeout(() =>
             this.imageLoader.load(
                 serverUrl,
