@@ -29,7 +29,7 @@ export class DiffRaster extends Raster {
                 var diffY = moundData.y - flatData.y;
 
                 /* if we recorded no moundData pixels (x == 0 and y == 0 is
-                   taken to mean "no mound data", set the diff to 0. This avoids
+                   taken to mean "no mound data") set the diff to 0. This avoids
                    strange high values of diff data in the shadows of objects, for example.
 
                    TODO: use another marker (instead of x=0,y=0) to represent

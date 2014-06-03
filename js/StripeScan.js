@@ -6,7 +6,8 @@ export class StripeScan {
     constructor() {
         window.ss = this;
 
-        this.server = "http://192.168.1.133:8080/shot.jpg";
+        this.server = "http://192.168.1.106:8080/shot.jpg";
+        console.log(this.server);
         this.imageLoader = new ImageLoader();
 
         /* the canvas on which we draw the gray code stripes */
@@ -20,6 +21,9 @@ export class StripeScan {
         this.cameraCanvas = null;
         this.cameraCtx = null;
 
+        this.darkStripeColor = '#000';
+        this.lightStripeColor = '#888';
+
         this.init();
     }
 
@@ -28,6 +32,7 @@ export class StripeScan {
     }
 
     init(width, height) {
+        this.dummyImage = null;
         this.horizStripeImages = [];
         this.vertStripeImages = [];
 
@@ -89,6 +94,8 @@ export class StripeScan {
             rasterCell.variance = rasterCell.max - rasterCell.min;
         };
 
+        this.processEachCameraPixel(this.dummyImage, pixelCallback);
+
         _.each(this.vertStripeImages, (img) => this.processEachCameraPixel(img, pixelCallback));
         _.each(this.horizStripeImages, (img) => this.processEachCameraPixel(img, pixelCallback));
     }
@@ -149,6 +156,23 @@ export class StripeScan {
         }
     }
 
+    grabDummyFrame(callback) {
+        var width = this.screenCanvas.width,
+            height = this.screenCanvas.height,
+            ctx = this.screenCtx;
+
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = this.darkStripeColor;
+        ctx.fillRect(0, 0, width/2, height);
+        ctx.fillStyle = this.lightStripeColor;
+        ctx.fillRect(width/2, 0, width/2, height);
+
+        this.grabCameraImage((img) => {
+            this.dummyImage = img;
+            this.invoke(callback);
+        });
+    }
+
     /* Fills the screen canvas with numStripes stripes. The stripes alternate
        in the following pattern (where 0 = white, 1 = black):
          Length 2:  01
@@ -164,17 +188,17 @@ export class StripeScan {
              0: white
              1: white
              2: black
-             2: black
+             3: black
            We always start in state 1, painting a white stripe first. */
         var state = 1;
         var nextColor = () => {
             var ret;
 
             if (state === 0 || state === 1) {
-                ret = '#888';
+                ret = this.lightStripeColor;
                 state++;
             } else if (state === 2 || state === 3) {
-                ret = 'black';
+                ret = this.darkStripeColor;
                 state++;
             }
 
@@ -190,9 +214,9 @@ export class StripeScan {
         for (var x = 0; x < numStripes; ++x) {
             this.screenCtx.fillStyle = nextColor();
             if (mode === 'vertical') {
-                this.screenCtx.fillRect(x * stripeSize, 0, x * stripeSize + stripeSize, this.screenCanvas.height);
+                this.screenCtx.fillRect(Math.floor(x * stripeSize), 0, stripeSize*2, this.screenCanvas.height);
             } else {
-                this.screenCtx.fillRect(0, x * stripeSize, this.screenCanvas.width, x * stripeSize + stripeSize);
+                this.screenCtx.fillRect(0, Math.floor(x * stripeSize), this.screenCanvas.width, stripeSize*2);
             }
         }
     }
@@ -292,8 +316,10 @@ export class StripeScan {
     /* Grabs all the images from the camera server and stores the vertical stripe
        images in this.vertStripeImages and the horizontal ones in this.horizStripeImages. */
     grabImages(doneCallback) {
-        this.grabImagesWithMode(this.vertFrames, 'vertical', this.vertStripeImages, () => {
-            this.grabImagesWithMode(this.horizFrames, 'horizontal', this.horizStripeImages, doneCallback);
+        this.grabDummyFrame(() => {
+            this.grabImagesWithMode(this.vertFrames, 'vertical', this.vertStripeImages, () => {
+                this.grabImagesWithMode(this.horizFrames, 'horizontal', this.horizStripeImages, doneCallback);
+            });
         });
     }
 

@@ -75,12 +75,12 @@ export class CameraRaster extends Raster {
         }
 
         // temporary to cut out mirror reflection from the test pictures
-        /*
+/*
         for (x = 0; x < this.width; ++x) {
             for (y = 550; y < this.height; ++y) {
                 this.data[x][y].enabled = false;
             }
         }
-        */
+*/
     }
 }

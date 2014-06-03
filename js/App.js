@@ -132,7 +132,7 @@ class Application extends Evented {
             tileServer = new ModelTileServer(tileRenderer);
 
         var modelObject = {
-            name: name,
+            name: 'Scan Elevation',
             dataModel: model,
             renderer: tileRenderer,
             server: tileServer,
@@ -157,7 +157,6 @@ class Application extends Evented {
 
     moundScan(canvas) {
         this.correspondence.moundScan(canvas, (diffRaster) => {
-            console.log('here');
             this.updateScanElevation(diffRaster);
             this.fire('mound-scan-done');
         }, () => {
