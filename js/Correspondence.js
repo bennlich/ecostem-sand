@@ -28,32 +28,91 @@ export class Correspondence {
         this.doScan(screenCanvas, this.flatData.data, callback, errorCallback);
     }
 
+    lineIntersection(p1,p2,p3,p4) {
+        var d12x = p1.x - p2.x,
+            d34x = p3.x - p4.x,
+            d12y = p1.y - p2.y,
+            d34y = p3.y - p4.y,
+            a = d12x * d34y - d12y * d34x,
+            b = p1.x * p2.y - p1.y * p2.x,
+            c = p3.x * p4.y - p3.y * p4.x;
+
+        var rx = (d34x * b - d12x * c) / a,
+            ry = (d34y * b - d12y * c) / a;
+
+        if (isNaN(rx) || isNaN(ry)) {
+            console.log('nan', p1, p2, p3, p4);
+        }
+
+        return {
+            x : Math.floor(rx),
+            y : Math.floor(ry)
+        };
+    }
+
     paintLines(canvas) {
-        canvas.width = 1600;
-        canvas.height = 1200;
+        canvas.width = 5000;
+        canvas.height = 4000;
         var ctx = canvas.getContext('2d');
         ctx.fillStyle = 'black';
-        ctx.fillRect(0, 0, 1600, 1200);
+        ctx.fillRect(0, 0, 5000, 4000);
         ctx.strokeStyle = 'rgba(255,127,0,0.5)';
         ctx.lineWidth=1;
         for (var i = 0; i < this.dataWidth; ++i) {
             for (var j = 0; j < this.dataHeight; ++j) {
                 var flat = this.flatData.data[i][j];
                 var mound = this.moundData.data[i][j];
+                if (Math.abs(mound.x-flat.x) + Math.abs(mound.y-flat.y) < 6) {
+                    continue;
+                }
                 if (flat.x === 0 && flat.y === 0)
                     continue;
                 if (mound.x === 0 && mound.y === 0)
                     continue;
                 ctx.fillStyle='blue';
-                ctx.fillRect(2*flat.x-1, 2*flat.y-1, 2, 2);
+                ctx.fillRect(2000 + 2*flat.x-1, 2000 + 2*flat.y-1, 2, 2);
                 ctx.fillStyle='red';
-                ctx.fillRect(2*mound.x-1, 2*mound.y-1, 2, 2);
+                ctx.fillRect(2000 + 2*mound.x-1, 2000 + 2*mound.y-1, 2, 2);
                 ctx.beginPath();
-                ctx.moveTo(2*flat.x, 2*flat.y);
-                ctx.lineTo(2*mound.x, 2*mound.y);
+                ctx.moveTo(2000 + 2*flat.x, 2000 + 2*flat.y);
+                ctx.lineTo(2000 + 2*mound.x, 2000 + 2*mound.y);
                 ctx.stroke();
             }
         }
+        var numSegments = 2000;
+        var xAvg = 0, yAvg = 0, avgNum = 0;
+        ctx.fillStyle = 'yellow';
+        while (numSegments > 0) {
+            var x1 = Math.floor(Math.random() * this.dataWidth);
+            var y1 = Math.floor(Math.random() * this.dataHeight);
+            var x2 = Math.floor(Math.random() * this.dataWidth);
+            var y2 = Math.floor(Math.random() * this.dataHeight);
+
+            if (Math.abs(x2-x1) + Math.abs(y2-y1) < 6) {
+                continue;
+            }
+
+            numSegments--;
+
+            var flat1 = this.flatData.data[x1][y1];
+            var mound1 = this.moundData.data[x1][y1];
+            var flat2 = this.flatData.data[x2][y2];
+            var mound2 = this.moundData.data[x2][y2];
+
+            var intersect = this.lineIntersection(flat1, mound1, flat2, mound2);
+            if (isFinite(intersect.x) && isFinite(intersect.y)) {
+                xAvg += intersect.x;
+                yAvg += intersect.y;
+                avgNum++;
+            }
+
+            ctx.fillRect(2000 + 2*intersect.x-1, 2000 + 2*intersect.y-1, 2, 2);
+        }
+        console.log(xAvg, yAvg);
+        var avgX = Math.floor(xAvg/avgNum);
+        var avgY = Math.floor(yAvg/avgNum);
+        ctx.fillRect(2000 + 2*avgX, 2000 + 2*avgY, 10, 10);
+        console.log(avgX, avgY);
     }
 
     /* Perform an "after" scan -- after say, the sand has changed, or a new
@@ -136,10 +195,14 @@ export class Correspondence {
                     var r = raster[i][j];
                     if (!r.list)
                         continue;
-                    //r.list.sort((p1,p2) => Math.abs(p1.x - p2.x) + Math.abs(p1.y - p2.y));
-                    //var pt = r.list[Math.floor(r.list.length/2)];
                     r.x = r.list[0].x;
                     r.y = r.list[0].y;
+                    /*
+                    r.list.sort((p1,p2) => Math.abs(p1.x - p2.x));
+                    r.x = r.list[Math.floor(r.list.length/2)].x;
+                    r.list.sort((p1,p2) => Math.abs(p1.y - p2.y));
+                    r.y = r.list[Math.floor(r.list.length/2)].y;
+                    */
                     delete r.list;
                 }
             }

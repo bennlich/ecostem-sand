@@ -7,7 +7,7 @@ class ImageLoaderTestDummy {
     constructor() {
         this.imageLoader = new RealImageLoader();
 
-        this.dir = 'img/scantest-sand';
+        this.dir = 'img/scantest-sand2';
 
         this.init = 0;
         this.stage = 'before';
