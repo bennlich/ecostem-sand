@@ -84,7 +84,11 @@ export class DiffRaster extends Raster {
     }
 
     /* blurs lone cells that are significantly higher or lower than their neighbors */
-    pruneOutliers() {
+    pruneOutliers(n) {
+        if (typeof n !== 'number' || n <= 0) n = 1;
+        while (n--) this._pruneOutliers();
+    }
+    _pruneOutliers() {
         for (var x = 0; x < this.width; ++x) {
             for (var y = 0; y < this.height; ++y) {
                 var diffData = this.data[x][y];
@@ -113,7 +117,11 @@ export class DiffRaster extends Raster {
     }
 
     /* simple blur algorithm. sets each cell to the avg of the neighbors */
-    blur() {
+    blur(n) {
+        if (typeof n !== 'number' || n <= 0) n = 1;
+        while (n--) this._blur();
+    }
+    _blur() {
         for (var x = 0; x < this.width; ++x) {
             for (var y = 0; y < this.height; ++y) {
                 var diffData = this.data[x][y];
@@ -121,31 +129,6 @@ export class DiffRaster extends Raster {
                 diffData.diffValue = _.reduce(n, (a,b) => a + b.diffValue, 0) / n.length;
             }
         }
-    }
-
-    /* bilinear interpolation -- adapted from Owen's coffeescript code */
-    bilinear(x,y,prop) {
-        var get = (x,y) => {
-            if (this.data[x] && this.data[x][y])
-                return this.data[x][y][prop] || 0;
-            else
-                return 0;
-        };
-
-        var x0 = Math.floor(x),
-            y0 = Math.floor(y);
-
-        x = x - x0;
-        y = y - y0;
-
-        var dx = 1-x,
-            dy = 1-y,
-            f00 = get(x0, y0),
-            f01 = get(x0, y0+1),
-            f10 = get(x0+1, y0),
-            f11 = get(x0+1, y0+1);
-
-        return f00 * dx * dy + f10 * x * dy + f01 * dx * y + f11 * x * y;
     }
 
     /* Creates a new DiffRaster with the new dimensions and uses bilinear
