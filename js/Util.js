@@ -1,4 +1,6 @@
 
+import {Config} from './Config';
+
 /* Dummy image loader that loads the pre-shot images from img/scantest.
    This is a drop-in from the image loader and doesn't require any
    changes to the client code. However, it makes assumptions about
@@ -13,11 +15,6 @@ class ImageLoaderTestDummy {
         this.stage = 'before';
         this.step = 1;
         this.mode = 'v';
-
-        /* Assumption: This has to be the same as 'vertFrames' in Correspondence.js */
-        this.vertSteps = 7;
-        /* Assumption: This has to be the same as 'horizFrames' in Correspondence.js */
-        this.horizSteps = 7;
     }
 
     _doDummyFrame(callback) {
@@ -46,7 +43,7 @@ class ImageLoaderTestDummy {
         this.imageLoader.load(url, callback);
         this.step++;
 
-        if ((this.mode === 'v' && this.step > this.vertSteps) || (this.mode === 'h' && this.step > this.horizSteps)) {
+        if ((this.mode === 'v' && this.step > Config.vertFrames) || (this.mode === 'h' && this.step > Config.horizFrames)) {
             if (this.mode === 'h') {
                 this._flipStage();
                 this.init = false;
@@ -139,7 +136,7 @@ export class Raster {
     reset() {
         for (var x = 0; x < this.width; ++x) {
             for (var y = 0; y < this.height; ++y) {
-                this.data[x][y] = _.extend({}, this.initValue);
+                this.data[x][y] = _.extend({_x: x, _y: y}, this.initValue);
             }
         }
     }

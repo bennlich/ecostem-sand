@@ -2,98 +2,175 @@ import {Raster} from './Util';
 import {Gradient} from '../st-api/Util/Gradient';
 
 export class DiffRaster extends Raster {
-    constructor(width, height, initValue) {
-        super(width, height, initValue);
+    constructor(width, height) {
+        super(width, height, {});
     }
 
-    /* Compute the before/after differences. Subtracts flatData from moundData
-       pointwise and stores the results in this.diffData */
+    /* flatRaster and moundRaster are *camera-space* rasters, so they differ
+       in dimensions from DiffRaster */
     doDiff(flatRaster, moundRaster) {
-        this.reset();
-
-        if (this.width !== flatRaster.width || this.width !== moundRaster.width
-            || this.height !== flatRaster.height || this.height !== moundRaster.height)
-        {
-            console.error('Raster dimensions differ.');
+        if (flatRaster.width !== moundRaster.width || flatRaster.height !== moundRaster.height) {
+            console.error('flatRaster and moundRaster dimensions differ.');
             return;
         }
 
-        for (var x = 0; x < this.width; ++x) {
-            for (var y = 0; y < this.height; ++y) {
-                var moundData = moundRaster.data[x][y],
-                    flatData = flatRaster.data[x][y],
-                    diffData = this.data[x][y];
+        this.reset();
 
-                /* straightforward pointwise diff */
-                var diffX = moundData.x - flatData.x;
-                var diffY = moundData.y - flatData.y;
+        var width = flatRaster.width,
+            height = flatRaster.height;
 
-                /* if we recorded no moundData pixels (x == 0 and y == 0 is
-                   taken to mean "no mound data") set the diff to 0. This avoids
-                   strange high values of diff data in the shadows of objects, for example.
+        /* first, populate the projector raster with a list of "opinions" from
+           camera space. Each camera pixel has an opinion about where a projector
+           cell "moved", because each camera pixel has a before and after. It
+           sees one projector cell in the before, and possibly another cell in the after. */
+        for (var i = 0; i < width; ++i) {
+            for (var j = 0; j < height; ++j) {
+                var flatPixel = flatRaster.data[i][j],
+                    moundPixel = moundRaster.data[i][j];
 
-                   TODO: use another marker (instead of x=0,y=0) to represent
-                   "no mound data" */
-                if (moundData.x === 0 && moundData.y === 0) {
-                    diffX = 0;
-                    diffY = 0;
+                if (!flatPixel.enabled || !moundPixel.enabled) {
+                    continue;
                 }
 
-                diffData.x = diffX;
-                diffData.y = diffY;
+                var projectorCell = this.data[flatPixel.x][flatPixel.y];
+
+                if (! projectorCell.list) {
+                    projectorCell.list = [];
+                }
+
+                /* only add it if it hasn't already been added */
+                var alreadyExists = _.find(projectorCell.list, (obj) =>
+                    moundPixel.x === obj.x && moundPixel.y === obj.y
+                );
+
+                /* don't care about mound (0,0) values. TODO: (0,0) signifies "no data"
+                   and the (0,0) cell at the same time. */
+                if (!alreadyExists && moundPixel.x !== 0 && moundPixel.y !== 0) {
+                    projectorCell.list.push({
+                        x: moundPixel.x,
+                        y: moundPixel.y
+                    });
+                }
+            }
+        }
+
+        /* we then sort the opinions by distance from the original point and pick
+           the shortest distance to be our "diff value" */
+        for (var x = 0; x < this.width; ++x) {
+            for (var y = 0; y < this.height; ++y) {
+                var diffData = this.data[x][y];
+
+                /* we straight-up disable the edges of the projection, where there are
+                   usually many errors */
+                if (x === 0 || y === 0 || x === this.width-1 || y === this.height-1) {
+                    diffData.diffValue = 0;
+                    delete diffData.list;
+                    continue;
+                }
+
+                if (diffData.list && diffData.list.length > 0) {
+                    diffData.list = _.sortBy(diffData.list, (obj) =>
+                        Math.abs(obj.x - x) + Math.abs(obj.y - y)
+                    );
+
+                    var choice = diffData.list[0];
+
+                    diffData.diffValue = Math.abs(choice.x - x) + Math.abs(choice.y - y);
+                } else {
+                    diffData.diffValue = 0;
+                }
             }
         }
     }
 
-    /* Finds cells that are surrounded mostly by cells with significantly
-       different values. These are bound to be errors. It's highly unlikely that
-       a single cell would record a huge difference with no change in the
-       cells around it. This would be the equivalent of a pin,
-       or a very thin object, gaining height in the scene. */
-    removeOutlierCells() {
+    /* blurs lone cells that are significantly higher or lower than their neighbors */
+    pruneOutliers() {
         for (var x = 0; x < this.width; ++x) {
             for (var y = 0; y < this.height; ++y) {
-                var diffData = this.data[x][y],
-                    neighbors = this.neighbors(x,y),
-                    smallerSumX = 0, smallerSumY = 0,
-                    biggerSumX = 0, biggerSumY = 0,
-                    smallerN = 0, biggerN = 0,
-                    diffWeight = Math.abs(diffData.x) + Math.abs(diffData.y);
+                var diffData = this.data[x][y];
+                var n = this.neighbors(x,y);
 
-                _.each(neighbors, (neighbor) => {
-                    /* TODO: I'm not sure why neighbor.x and neighbor.y
-                       can show up NaN here. */
-                    var nx = neighbor.x || 0;
-                    var ny = neighbor.y || 0;
+                var biggerN = [],    /* significantly bigger neighbors */
+                    smallerN = [];   /* significantly smaller neighbors */
 
-                    /* We define "value" or "weight" of a cell by its
-                       absolute diff sum. We only care about the amplitude
-                       of its displacement, not the direction. */
-                    var neighborWeight = Math.abs(nx) + Math.abs(ny);
-
-                    /* We define "significantly different" as being 2 times bigger in amplitude/weight. */
-                    if (neighborWeight > (2 * diffWeight)) {
-                        biggerSumX += nx;
-                        biggerSumY += ny;
-                        biggerN++;
-                    } else if (diffWeight > (2 * neighborWeight)){
-                        smallerSumX += nx;
-                        smallerSumY += ny;
-                        smallerN++;
+                for (var i = 0; i < n.length; ++i) {
+                    /* significantly different ==> 5 times smaller or bigger */
+                    if (n[i].diffValue > 5 * diffData.diffValue) {
+                        biggerN.push(n[i].diffValue);
+                    } else if (n[i].diffValue * 5 < diffData.diffValue) {
+                        smallerN.push(n[i].diffValue);
                     }
-                });
+                }
 
-                /* If more than 5/8 of the neighbors are significantly different, we set this cell
-                   to the average of the neighbors' values. */
-                if (smallerN >= neighbors.length * 5/8) {
-                    diffData.x = Math.floor(smallerSumX/smallerN);
-                    diffData.y = Math.floor(smallerSumY/smallerN);
-                } else if (biggerN >= neighbors.length * 5/8) {
-                    diffData.x = Math.floor(biggerSumX/biggerN);
-                    diffData.y = Math.floor(biggerSumY/biggerN);
+                var arr = biggerN.length > smallerN.length ? biggerN : smallerN;
+
+                /* we only blur if at least 70% of the neighbors are significantly different */
+                if (arr.length/n.length > 0.7) {
+                    diffData.diffValue = _.reduce(arr, (a,b) => a+b, 0) / arr.length;
                 }
             }
         }
+    }
+
+    /* simple blur algorithm. sets each cell to the avg of the neighbors */
+    blur() {
+        for (var x = 0; x < this.width; ++x) {
+            for (var y = 0; y < this.height; ++y) {
+                var diffData = this.data[x][y];
+                var n = this.neighbors(x,y);
+                diffData.diffValue = _.reduce(n, (a,b) => a + b.diffValue, 0) / n.length;
+            }
+        }
+    }
+
+    /* bilinear interpolation -- adapted from Owen's coffeescript code */
+    bilinear(x,y,prop) {
+        var get = (x,y) => {
+            if (this.data[x] && this.data[x][y])
+                return this.data[x][y][prop] || 0;
+            else
+                return 0;
+        };
+
+        var x0 = Math.floor(x),
+            y0 = Math.floor(y);
+
+        x = x - x0;
+        y = y - y0;
+
+        var dx = 1-x,
+            dy = 1-y,
+            f00 = get(x0, y0),
+            f01 = get(x0, y0+1),
+            f10 = get(x0+1, y0),
+            f11 = get(x0+1, y0+1);
+
+        return f00 * dx * dy + f10 * x * dy + f01 * dx * y + f11 * x * y;
+    }
+
+    /* Creates a new DiffRaster with the new dimensions and uses bilinear
+       interpolation to fill the upsample this raster into the new, bigger one */
+    upsample(newWidth, newHeight) {
+        newWidth = Math.floor(newWidth);
+        newHeight = Math.floor(newHeight);
+
+        if (newWidth <= this.width || newHeight <= this.height) {
+            console.error("Won't upsample to lower res.");
+            return;
+        }
+
+        var newRaster = new DiffRaster(newWidth, newHeight);
+
+        var widthRatio = this.width / newWidth,
+            heightRatio = this.height / newHeight;
+
+        for (var i = 0; i < newWidth; ++i) {
+            for (var j = 0; j < newHeight; ++j) {
+                newRaster.data[i][j].diffValue = this.bilinear(i * widthRatio, j * heightRatio, 'diffValue');
+            }
+        }
+
+        return newRaster;
     }
 
     /* Paint the differences onto a canvas. */
@@ -116,7 +193,7 @@ export class DiffRaster extends Raster {
         for (x = 0; x < this.width; ++x) {
             for (y = 0; y < this.height; ++y) {
                 patch = this.data[x][y];
-                diffValue = Math.abs(patch.x)+Math.abs(patch.y);
+                diffValue = patch.diffValue;
 
                 if (diffValue > max) {
                     max = diffValue;
@@ -133,9 +210,7 @@ export class DiffRaster extends Raster {
         for (x = 0; x < this.width; ++x) {
             for (y = 0; y < this.height; ++y) {
                 patch = this.data[x][y];
-
-                /* For now we just add together the x- and y-differences */
-                diffValue = Math.abs(patch.x)+Math.abs(patch.y);
+                diffValue = patch.diffValue;
 
                 ctx.fillStyle = Gradient.hsvToRgb((1-diffValue/variance)*0.8, 1, 1);
                 ctx.fillRect(

@@ -1,6 +1,7 @@
 
 import {ImageLoader} from './Util';
 import {CameraRaster} from './CameraRaster';
+import {Config} from './Config';
 
 export class StripeScan {
     constructor() {
@@ -51,7 +52,7 @@ export class StripeScan {
         this.cameraCtx = cameraCanvas.getContext('2d');
     }
 
-    scan(vertFrames, horizFrames, canvas, doneCallback, errorCallback) {
+    scan(canvas, doneCallback, errorCallback) {
         this.screenCanvas = canvas;
         this.screenCtx = canvas.getContext('2d');
         this.errorCallback = errorCallback;
@@ -62,8 +63,6 @@ export class StripeScan {
             /* numFrames is how many level of stripes to flash. numFrames == 7
                would mean the finest level will display 2^7 = 128 stripes, giving
                a resolution of 128 x 128 for the correspondence raster. */
-            this.vertFrames = vertFrames;
-            this.horizFrames = horizFrames;
 
             this.grabImages(() => {
                 this.computeMinMax();
@@ -317,8 +316,8 @@ export class StripeScan {
        images in this.vertStripeImages and the horizontal ones in this.horizStripeImages. */
     grabImages(doneCallback) {
         this.grabDummyFrame(() => {
-            this.grabImagesWithMode(this.vertFrames, 'vertical', this.vertStripeImages, () => {
-                this.grabImagesWithMode(this.horizFrames, 'horizontal', this.horizStripeImages, doneCallback);
+            this.grabImagesWithMode(Config.vertFrames, 'vertical', this.vertStripeImages, () => {
+                this.grabImagesWithMode(Config.horizFrames, 'horizontal', this.horizStripeImages, doneCallback);
             });
         });
     }
@@ -326,7 +325,7 @@ export class StripeScan {
     /* The meat of the method above. */
     grabImagesWithMode(n, mode, imageArray, doneCallback) {
         if (n > 0) {
-            var numFrames = mode === 'vertical' ? this.vertFrames : this.horizFrames;
+            var numFrames = mode === 'vertical' ? Config.vertFrames : Config.horizFrames;
             var numStripes = Math.pow(2, (numFrames-n+1));
             /* Paint the stripes on the full-screen canvas. */
             this.paintStripes(numStripes, mode);
