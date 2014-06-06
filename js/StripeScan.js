@@ -1,5 +1,5 @@
 
-import {ImageLoader} from './Util';
+import {ImageLoader} from './ImageLoader';
 import {CameraRaster} from './CameraRaster';
 import {Config} from './Config';
 

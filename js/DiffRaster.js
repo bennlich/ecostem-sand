@@ -1,4 +1,4 @@
-import {Raster} from './Util';
+import {Raster} from './Raster';
 import {Gradient} from '../st-api/Util/Gradient';
 
 export class DiffRaster extends Raster {

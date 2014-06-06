@@ -1,4 +1,4 @@
-import {Raster} from './Util';
+import {Raster} from './Raster';
 
 export class CameraRaster extends Raster {
     constructor(width, height) {
