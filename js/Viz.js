@@ -1,4 +1,6 @@
 
+/* Experimental visualization of the difference data, intersection points
+   of a sample of pairs of diff segments, and the center of mass of these points */
 export class Viz {
     lineIntersection(p1,p2,p3,p4) {
         var d12x = p1.x - p2.x,

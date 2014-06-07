@@ -155,6 +155,10 @@ export class StripeScan {
         }
     }
 
+    /* The dummy frame is half-black and half-white and makes sure that, across all frames,
+       every pixel is lit up both black and white. Without this frame, the (0,0) projector cell
+       will be all-white across all frames, and one other cell (not sure about its exact coords)
+       in the right half of the projected image will be all-black across all frames. */
     grabDummyFrame(callback) {
         var width = this.screenCanvas.width,
             height = this.screenCanvas.height,

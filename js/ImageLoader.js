@@ -1,10 +1,9 @@
 
 import {Config} from './Config';
 
-/* Dummy image loader that loads the pre-shot images from img/scantest.
+/* Dummy image loader that loads the pre-shot images from img/scantest-*.
    This is a drop-in from the image loader and doesn't require any
-   changes to the client code. However, it makes assumptions about
-   the setup in Correspondence.js. */
+   changes to the client code. */
 class ImageLoaderTestDummy {
     constructor() {
         this.imageLoader = new RealImageLoader();
@@ -34,6 +33,9 @@ class ImageLoaderTestDummy {
     }
 
     load(url, callback) {
+        /* Emulate StripeScan by loading one frame just to get image dimensions,
+           and the special "dummy" frame that makes sure every pixel is both
+           black and white across the full scan */
         if (this.init < 2) {
             this._doDummyFrame(callback);
             return;
