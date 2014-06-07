@@ -32,7 +32,7 @@ export class DiffRaster extends Raster {
                     continue;
                 }
 
-                var projectorCell = this.data[flatPixel.x][flatPixel.y];
+                var projectorCell = this.data[moundPixel.x][moundPixel.y];
 
                 if (! projectorCell.list) {
                     projectorCell.list = [];
@@ -40,15 +40,15 @@ export class DiffRaster extends Raster {
 
                 /* only add it if it hasn't already been added */
                 var alreadyExists = _.find(projectorCell.list, (obj) =>
-                    moundPixel.x === obj.x && moundPixel.y === obj.y
+                    flatPixel.x === obj.x && flatPixel.y === obj.y
                 );
 
                 /* don't care about mound (0,0) values. TODO: (0,0) signifies "no data"
                    and the (0,0) cell at the same time. */
-                if (!alreadyExists && moundPixel.x !== 0 && moundPixel.y !== 0) {
+                if (!alreadyExists && flatPixel.x !== 0 && flatPixel.y !== 0) {
                     projectorCell.list.push({
-                        x: moundPixel.x,
-                        y: moundPixel.y
+                        x: flatPixel.x,
+                        y: flatPixel.y
                     });
                 }
             }
