@@ -176,7 +176,7 @@ export class DiffRaster extends Raster {
         for (x = 0; x < this.width; ++x) {
             for (y = 0; y < this.height; ++y) {
                 patch = this.data[x][y];
-                diffValue = patch.diffValue;
+                diffValue = patch.isHeight ? patch.diffValue : -patch.diffValue;
 
                 if (diffValue > max) {
                     max = diffValue;
@@ -193,9 +193,10 @@ export class DiffRaster extends Raster {
         for (x = 0; x < this.width; ++x) {
             for (y = 0; y < this.height; ++y) {
                 patch = this.data[x][y];
-                diffValue = patch.diffValue;
+                diffValue = patch.isHeight ? patch.diffValue : -patch.diffValue;
 
-                ctx.fillStyle = Gradient.hsvToRgb((1-diffValue/variance)*0.8, 1, 1);
+                ctx.fillStyle = Gradient.hsvToRgb(0.8*(1-(diffValue-min)/variance), 1, 1);
+
                 ctx.fillRect(
                     x * patchWidth,
                     y * patchHeight,
