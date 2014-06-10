@@ -151,7 +151,12 @@ export class DiffRaster extends Raster {
 
         for (var i = 0; i < newWidth; ++i) {
             for (var j = 0; j < newHeight; ++j) {
-                newRaster.data[i][j].diffValue = this.bilinear(i * widthRatio, j * heightRatio, 'diffValue', this.zeroValue);
+                var cell = newRaster.data[i][j];
+                cell._x = i;
+                cell._y = j;
+                /* Passing in the zero value is necessary to avoid interpolating with "0" around the edges
+                   of the raster. Instead we want to interpolate with the "flat" value which may be positive. */
+                cell.diffValue = this.bilinear(i * widthRatio, j * heightRatio, 'diffValue', this.zeroValue);
             }
         }
 

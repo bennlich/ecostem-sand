@@ -36,8 +36,7 @@ export class Correspondence {
             this.diffData.pruneOutliers(2,5);
 
             var est = new EpinodeEstimate(this.diffData);
-            est.estimate();
-            this.diffData.zeroValue = est.write();
+            est.writeNormalizedHeights();
 
             this.diffData.blur(2);
 
