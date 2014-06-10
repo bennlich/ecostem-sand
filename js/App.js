@@ -97,18 +97,26 @@ export class App extends Evented {
         this.elevModel = modelObject;
     }
 
-    flatScan(canvas) {
-        this.correspondence.flatScan(canvas, () => {
-            this.fire('flat-scan-done');
+    calibrationFlatScan(canvas) {
+        this.correspondence.calibrationFlatScan(canvas, () => {
+            this.fire('calib-flat-done');
         }, () => {
             this.fire('error', 'Could not load camera frame.');
         });
     }
 
-    moundScan(canvas) {
+    calibrationMoundScan(canvas) {
+        this.correspondence.calibrationMoundScan(canvas, () => {
+            this.fire('calib-mound-done');
+        }, () => {
+            this.fire('error', 'Could not load camera frame.');
+        });
+    }
+
+    sandScan(canvas) {
         this.correspondence.moundScan(canvas, (diffRaster) => {
             this.updateScanElevation(diffRaster);
-            this.fire('mound-scan-done');
+            this.fire('sand-scan-done');
         }, () => {
             this.fire('error', 'Could not load camera frame.');
         });

@@ -11,14 +11,17 @@ export class Correspondence {
         window.correspondence = this;
 
         this.stripeScan = new StripeScan();
+        this.epinodeEstimate = new EpinodeEstimate();
 
         this.dataWidth = Math.pow(2, Config.vertFrames);
         this.dataHeight = Math.pow(2, Config.horizFrames);
 
-        this.diffData = new DiffRaster(this.dataWidth, this.dataHeight);
+        this.flatRaster = null;
+        this.moundRaster = null;
+        this.diffRaster = new DiffRaster(this.dataWidth, this.dataHeight);
     }
 
-    flatScan(screenCanvas, callback, errorCallback) {
+    calibrationFlatScan(screenCanvas, callback, errorCallback) {
         var cb = (outputRaster) => {
             this.flatRaster = outputRaster;
             if (typeof callback === 'function') {
@@ -28,20 +31,41 @@ export class Correspondence {
         this.doScan(screenCanvas, cb, errorCallback);
     }
 
+    calibrationMoundScan(screenCanvas, sx0, sy0, sx1, sy1, callback, errorCallback) {
+        var cb = (moundRaster) => {
+            this.diffRaster.doDiff(this.flatRaster, moundRaster);
+            this.diffRaster.pruneOutliers(2,5);
+
+            var screenWidth = screenCanvas.width,
+                screenHeight = screenCanvas.height,
+                widthRatio = this.diffRaster.width / screenWidth,
+                heightRatio = this.diffRaster.height / screenHeight,
+                x0 = Math.floor(sx0 * widthRatio),
+                y0 = Math.floor(sy0 * heightRatio),
+                x1 = Math.floor(sx1 * widthRatio),
+                y1 = Math.floor(sy1 * heightRatio);
+
+            this.epinodeEstimate.estimateEpinodeDirect(this.diffRaster, x0, y0, x1, y1);
+
+            this.epinodeEstimate.writeNormalizedHeights(this.diffRaster);
+
+            var biggerDiff = this.diffData.upsample(screenCanvas.width/3, screenCanvas.height/3);
+            biggerDiff.paintDiff(screenCanvas);
+
+            if (typeof callback === 'function') {
+                callback();
+            }
+        };
+
+        this.doScan(screenCanvas, cb, errorCallback);
+    }
+
     moundScan(screenCanvas, callback, errorCallback) {
-        var cb = (outputRaster) => {
-            this.moundRaster = outputRaster;
-            this.diffData.doDiff(this.flatRaster, this.moundRaster);
-
-            this.diffData.pruneOutliers(2,5);
-
-            var est = new EpinodeEstimate(this.diffData);
-            est.estimateEpinodeDirection(this.diffData, 31, 64, 40, 71);
-            est.writeNormalizedHeightsInto(this.diffData);
-
+        var cb = (moundRaster) => {
+            this.diffRaster.doDiff(this.flatRaster, moundRaster);
+            this.diffRaster.pruneOutliers(2,5);
+            this.epinodeEstimate.writeNormalizedHeightsInto(this.diffData);
             this.diffData.blur(2);
-
-//            this.diffData.paintDiff(screenCanvas);
 
             var biggerDiff = this.diffData.upsample(screenCanvas.width/3, screenCanvas.height/3);
             biggerDiff.paintDiff(screenCanvas);

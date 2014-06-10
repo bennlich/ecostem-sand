@@ -67,17 +67,45 @@ var menuUI = React.createClass({
 
 var calibrationUI = React.createClass({
     getInitialState: function() {
-        return {
-            started: false,
-            flatDone: false,
-            moundDone: false
-        };
+        app.on('calib-start', () => this.start());
+        app.on('calib-flat-done', () => this.flatDone());
+        app.on('calib-mound-done', () => this.moundDone());
+
+        return { s: 'hidden' };
+        /* states:
+            hidden: UI is hidden
+            flat: show flat sand dialog
+            mountain: show mound sand dialog
+        */
+    },
+    start: function() {
+        this.setState({ s: 'flat' });
+        var handler = function(e) {
+            if (e.keyCode === 49) {
+
+            }
+        }.bind(this);
+        $().on('keypress', handler);
+    },
+    flatDone: function() {
+
+    },
+    moundDone: function() {
+
     },
     render: function() {
-        return D.div({className: 'calib-container'}, [
-            D.div({className: 'message'}, 'Make a mountain centered in the square below and press Space.'),
-            D.div({className: 'mound-square'})
-        ]);
+        if (this.state.s === 'mountain') {
+            return D.div({className: 'calib-container'}, [
+                D.div({className: 'message'}, 'Make a mountain centered in the square below and press Space.'),
+                D.div({className: 'mound-square'})
+            ]);
+        } else if (this.state.s === 'flat') {
+            return D.div({className: 'calib-container'},
+                D.div({className: 'message'}, 'Flatten the sand and press Space.')
+            );
+        } else {
+            return D.div();
+        }
     }
 });
 
