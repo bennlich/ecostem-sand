@@ -65,14 +65,34 @@ var menuUI = React.createClass({
     }
 });
 
+var calibrationUI = React.createClass({
+    getInitialState: function() {
+        return {
+            started: false,
+            flatDone: false,
+            moundDone: false
+        };
+    },
+    render: function() {
+        return D.div({className: 'calib-container'}, [
+            D.div({className: 'message'}, 'Make a mountain centered in the square below and press Space.'),
+            D.div({className: 'mound-square'})
+        ]);
+    }
+});
+
 var scanUI = React.createClass({
     getInitialState: function() {
         this.id = 'scan';
+
         app.on('flat-scan-start', () => this.startFlatScan());
         app.on('mound-scan-start', () => this.startMoundScan());
         app.on('flat-scan-done', () => this.setState({active:true}));
         app.on('mound-scan-done', () => this.setState({active:false}));
-        return { active: false };
+
+        return {
+            active: false
+        };
     },
     getCanvas: function() {
         var canvas = this.refs[this.id].getDOMNode(),
@@ -124,6 +144,7 @@ var mainUI = React.createClass({
         return D.div({}, [
             tfMockUI(),
             leafletUI(),
+            calibrationUI(),
             scanUI(),
             errorMessageUI(),
             menuUI()
