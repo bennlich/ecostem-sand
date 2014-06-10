@@ -32,26 +32,19 @@ export class Correspondence {
         var cb = (outputRaster) => {
             this.moundRaster = outputRaster;
             this.diffData.doDiff(this.flatRaster, this.moundRaster);
-            this.diffData.pruneOutliers(2);
+
+            this.diffData.pruneOutliers(2,5);
 
             var est = new EpinodeEstimate(this.diffData);
             est.estimate();
-            est.write();
+            this.diffData.zeroValue = est.write();
 
-            //this.diffData.blur(2);
+            this.diffData.blur(2);
 
-            this.diffData.paintDiff(screenCanvas);
-            var patchWidth = screenCanvas.width / this.dataWidth;
-            var patchHeight = screenCanvas.height / this.dataHeight;
+//            this.diffData.paintDiff(screenCanvas);
 
-            $(screenCanvas).on('click', (e) => {
-                var x = Math.floor(e.clientX / patchWidth);
-                var y = Math.floor(e.clientY / patchHeight);
-                console.log(this.diffData.data[x][y]);
-            });
-
-            //var biggerDiff = this.diffData.upsample(screenCanvas.width/3, screenCanvas.height/3);
-            //biggerDiff.paintDiff(screenCanvas);
+            var biggerDiff = this.diffData.upsample(screenCanvas.width/3, screenCanvas.height/3);
+            biggerDiff.paintDiff(screenCanvas);
         };
         this.doScan(screenCanvas, cb, errorCallback);
     }

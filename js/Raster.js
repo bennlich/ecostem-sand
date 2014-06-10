@@ -50,12 +50,13 @@ export class Raster {
     }
 
     /* bilinear interpolation -- adapted from Owen's coffeescript code */
-    bilinear(x,y,prop) {
+    bilinear(x,y,prop,zeroValue) {
+        zeroValue = zeroValue || 0;
         var get = (x,y) => {
             if (this.data[x] && this.data[x][y])
-                return this.data[x][y][prop] || 0;
+                return this.data[x][y][prop] || zeroValue;
             else
-                return 0;
+                return zeroValue;
         };
 
         var x0 = Math.floor(x),

@@ -4,6 +4,7 @@ import {Gradient} from '../st-api/Util/Gradient';
 export class DiffRaster extends Raster {
     constructor(width, height) {
         super(width, height, {});
+        this.zeroValue = 0;
     }
 
     /* flatRaster and moundRaster are *camera-space* rasters, so they differ
@@ -84,11 +85,12 @@ export class DiffRaster extends Raster {
     }
 
     /* blurs lone cells that are significantly higher or lower than their neighbors */
-    pruneOutliers(n) {
+    pruneOutliers(n,f) {
         if (typeof n !== 'number' || n <= 0) n = 1;
-        while (n--) this._pruneOutliers();
+        while (n--) this._pruneOutliers(f);
     }
-    _pruneOutliers() {
+    _pruneOutliers(factor) {
+        factor = factor || 5;
         for (var x = 0; x < this.width; ++x) {
             for (var y = 0; y < this.height; ++y) {
                 var diffData = this.data[x][y];
@@ -99,9 +101,9 @@ export class DiffRaster extends Raster {
 
                 for (var i = 0; i < n.length; ++i) {
                     /* significantly different ==> 5 times smaller or bigger */
-                    if (n[i].diffValue > 5 * diffData.diffValue) {
+                    if (n[i].diffValue > factor * diffData.diffValue) {
                         biggerN.push(n[i].diffValue);
-                    } else if (n[i].diffValue * 5 < diffData.diffValue) {
+                    } else if (n[i].diffValue * factor < diffData.diffValue) {
                         smallerN.push(n[i].diffValue);
                     }
                 }
@@ -149,7 +151,7 @@ export class DiffRaster extends Raster {
 
         for (var i = 0; i < newWidth; ++i) {
             for (var j = 0; j < newHeight; ++j) {
-                newRaster.data[i][j].diffValue = this.bilinear(i * widthRatio, j * heightRatio, 'diffValue');
+                newRaster.data[i][j].diffValue = this.bilinear(i * widthRatio, j * heightRatio, 'diffValue', this.zeroValue);
             }
         }
 
@@ -176,7 +178,7 @@ export class DiffRaster extends Raster {
         for (x = 0; x < this.width; ++x) {
             for (y = 0; y < this.height; ++y) {
                 patch = this.data[x][y];
-                diffValue = patch.isHeight ? patch.diffValue : -patch.diffValue;
+                diffValue = patch.diffValue;
 
                 if (diffValue > max) {
                     max = diffValue;
@@ -193,7 +195,7 @@ export class DiffRaster extends Raster {
         for (x = 0; x < this.width; ++x) {
             for (y = 0; y < this.height; ++y) {
                 patch = this.data[x][y];
-                diffValue = patch.isHeight ? patch.diffValue : -patch.diffValue;
+                diffValue = patch.diffValue;
 
                 ctx.fillStyle = Gradient.hsvToRgb(0.8*(1-(diffValue-min)/variance), 1, 1);
 
@@ -205,5 +207,12 @@ export class DiffRaster extends Raster {
                 );
             }
         }
+
+        /* For debugging. */
+        $(canvas).on('click', (e) => {
+            var x = Math.floor(e.clientX / patchWidth);
+            var y = Math.floor(e.clientY / patchHeight);
+            console.log(this.data[x][y]);
+        });
     }
 }

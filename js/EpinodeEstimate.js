@@ -44,11 +44,28 @@ export class EpinodeEstimate {
     }
 
     write() {
-        for (var x = 0; x < this.diffRaster.width; ++x) {
-            for (var y = 0; y < this.diffRaster.height; ++y) {
-                this.diffRaster.data[x][y].isHeight = this.isHeight(x,y);
+        var min = 1000000, x, y;
+        for (x = 0; x < this.diffRaster.width; ++x) {
+            for (y = 0; y < this.diffRaster.height; ++y) {
+                var val = this.diffRaster.data[x][y].diffValue;
+
+                if (! this.isHeight(x,y))
+                    val = -val;
+
+                if (val < min)
+                    min = val;
+
+                this.diffRaster.data[x][y].diffValue = val;
             }
         }
+
+        for (x = 0; x < this.diffRaster.width; ++x) {
+            for (y = 0; y < this.diffRaster.height; ++y) {
+                this.diffRaster.data[x][y].diffValue = this.diffRaster.data[x][y].diffValue - min;
+            }
+        }
+
+        return Math.abs(min);
     }
 
     isHeight(x,y) {
