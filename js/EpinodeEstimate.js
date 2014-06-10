@@ -42,7 +42,8 @@ export class EpinodeEstimate {
         }
 
         if (numAngles === 0) {
-            throw new Error("No displacements were found in the given rect.");
+            console.error("No displacements were found in the given rect.");
+            return;
         }
 
         /* Set the "overall angle" to the average of all the angles within the
@@ -76,7 +77,10 @@ export class EpinodeEstimate {
     writeNormalizedHeights() {
         this._estimate();
 
-        var min = 1000000, x, y;
+        var min = 1000000,
+            /* multiplying factor for elevation -- to make it something closer to meters */
+            scale = 200,
+            x, y;
 
         for (x = 0; x < this.diffRaster.width; ++x) {
             for (y = 0; y < this.diffRaster.height; ++y) {
@@ -94,11 +98,11 @@ export class EpinodeEstimate {
         /* Normalize heights -- make everything positive, a delta from the min value.  */
         for (x = 0; x < this.diffRaster.width; ++x) {
             for (y = 0; y < this.diffRaster.height; ++y) {
-                this.diffRaster.data[x][y].diffValue = this.diffRaster.data[x][y].diffValue - min;
+                this.diffRaster.data[x][y].diffValue = scale*(this.diffRaster.data[x][y].diffValue - min);
             }
         }
 
         /* Record the value previously "0" -- meaning "flat" or "unchanged" */
-        this.diffRaster.zeroValue = Math.abs(min);
+        this.diffRaster.zeroValue = scale*Math.abs(min);
     }
 }
