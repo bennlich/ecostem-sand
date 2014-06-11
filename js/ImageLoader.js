@@ -41,7 +41,6 @@ class ImageLoaderTestDummy {
             return;
         }
         url = '{0}/{1}/{2}{3}.jpg'.format(this.dir, this.stage, this.mode, this.step);
-        console.log('loading', url);
         this.imageLoader.load(url, callback);
         this.step++;
 

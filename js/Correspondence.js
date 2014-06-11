@@ -45,11 +45,14 @@ export class Correspondence {
                 x1 = Math.floor(sx1 * widthRatio),
                 y1 = Math.floor(sy1 * heightRatio);
 
-            this.epinodeEstimate.estimateEpinodeDirect(this.diffRaster, x0, y0, x1, y1);
+            console.log('diff raster box', x0, y0, x1, y1);
 
-            this.epinodeEstimate.writeNormalizedHeights(this.diffRaster);
+            this.epinodeEstimate.estimateEpinodeDirection(this.diffRaster, x0, y0, x1, y1);
+            this.epinodeEstimate.writeNormalizedHeightsInto(this.diffRaster);
 
-            var biggerDiff = this.diffData.upsample(screenCanvas.width/3, screenCanvas.height/3);
+            this.diffRaster.blur(2);
+
+            var biggerDiff = this.diffRaster.upsample(screenCanvas.width/3, screenCanvas.height/3);
             biggerDiff.paintDiff(screenCanvas);
 
             if (typeof callback === 'function') {
@@ -64,10 +67,10 @@ export class Correspondence {
         var cb = (moundRaster) => {
             this.diffRaster.doDiff(this.flatRaster, moundRaster);
             this.diffRaster.pruneOutliers(2,5);
-            this.epinodeEstimate.writeNormalizedHeightsInto(this.diffData);
-            this.diffData.blur(2);
+            this.epinodeEstimate.writeNormalizedHeightsInto(this.diffRaster);
+            this.diffRaster.blur(2);
 
-            var biggerDiff = this.diffData.upsample(screenCanvas.width/3, screenCanvas.height/3);
+            var biggerDiff = this.diffRaster.upsample(screenCanvas.width/3, screenCanvas.height/3);
             biggerDiff.paintDiff(screenCanvas);
         };
         this.doScan(screenCanvas, cb, errorCallback);

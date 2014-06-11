@@ -25,14 +25,21 @@ var leafletUI = React.createClass({
 
 var menuUI = React.createClass({
     getInitialState: function() {
-        app.on('flat-scan-done', () => this.setState({ flatScanned: true }));
+        app.on('calib-mound-done', () => this.setState({
+            calibrating: false,
+            calibrated: true
+        }));
+
         return {
-            started: false,
-            flatScanned: false
+            startedAnimator: false,
+            calibrating: false,
+            calibrated: false
         };
     },
     updateState: function() {
-        this.setState({started: app.animator.isRunning});
+        this.setState({
+            startedAnimator: app.animator.isRunning
+        });
     },
     handleStartClick: function() {
         app.animator.start();
@@ -52,57 +59,22 @@ var menuUI = React.createClass({
     handleMountainScanClick: function() {
         app.fire('mound-scan-start');
     },
+    handleCalibrate: function() {
+        this.setState({calibrating: true});
+        app.fire('calib-start');
+    },
     render: function() {
         var startButton = D.button({onClick: this.handleStartClick}, 'Start');
         var stopButton = D.button({onClick: this.handleStopClick}, 'Stop');
+        var calibButton = D.button({onClick: this.handleCalibrate}, 'Calibrate');
 
-        return D.div({className: 'menu'}, [
-            this.state.started ? stopButton : startButton,
-            D.button({onClick: this.handleResetClick}, 'Reset'),
-            D.button({onClick: this.handleFlatScanClick}, 'Flat Scan'),
-            this.state.flatScanned ? D.button({onClick: this.handleMountainScanClick}, 'Mountain Scan') : null
-        ]);
-    }
-});
-
-var calibrationUI = React.createClass({
-    getInitialState: function() {
-        app.on('calib-start', () => this.start());
-        app.on('calib-flat-done', () => this.flatDone());
-        app.on('calib-mound-done', () => this.moundDone());
-
-        return { s: 'hidden' };
-        /* states:
-            hidden: UI is hidden
-            flat: show flat sand dialog
-            mountain: show mound sand dialog
-        */
-    },
-    start: function() {
-        this.setState({ s: 'flat' });
-        var handler = function(e) {
-            if (e.keyCode === 49) {
-
-            }
-        }.bind(this);
-        $().on('keypress', handler);
-    },
-    flatDone: function() {
-
-    },
-    moundDone: function() {
-
-    },
-    render: function() {
-        if (this.state.s === 'mountain') {
-            return D.div({className: 'calib-container'}, [
-                D.div({className: 'message'}, 'Make a mountain centered in the square below and press Space.'),
-                D.div({className: 'mound-square'})
+        if (!this.state.calibrating) {
+            return D.div({className: 'menu'}, [
+                calibButton,
+                this.state.startedAnimator ? stopButton : startButton,
+                D.button({onClick: this.handleResetClick}, 'Reset'),
+                this.state.calibrated ? D.button({onClick: this.handleMountainScanClick}, 'Sand Scan') : null
             ]);
-        } else if (this.state.s === 'flat') {
-            return D.div({className: 'calib-container'},
-                D.div({className: 'message'}, 'Flatten the sand and press Space.')
-            );
         } else {
             return D.div();
         }
@@ -112,38 +84,88 @@ var calibrationUI = React.createClass({
 var scanUI = React.createClass({
     getInitialState: function() {
         this.id = 'scan';
+        this.width = Math.floor($(window).width());
+        this.height = Math.floor($(window).height());
 
-        app.on('flat-scan-start', () => this.startFlatScan());
-        app.on('mound-scan-start', () => this.startMoundScan());
-        app.on('flat-scan-done', () => this.setState({active:true}));
-        app.on('mound-scan-done', () => this.setState({active:false}));
+        app.on('calib-start', () => this.calibFlat());
+        app.on('calib-flat-done', () => this.calibMound());
+//        app.on('calib-mound-done', () => this.setState({display:null}));
 
-        return {
-            active: false
-        };
+        app.on('mound-start', () => this.moundScan());
+        app.on('mound-done', () => this.setState({display:null}));
+
+        return { display: null };
     },
     getCanvas: function() {
-        var canvas = this.refs[this.id].getDOMNode(),
-            width = $(canvas).parent().width(),
-            height = $(canvas).parent().height();
+        var canvas = this.refs[this.id].getDOMNode();
 
-        canvas.width = width;
-        canvas.height = height;
+        canvas.width = this.width;
+        canvas.height = this.height;
+
+        console.log(canvas.width, canvas.height);
 
         return canvas;
     },
-    startFlatScan: function() {
-        this.setState({active:true});
-        app.flatScan(this.getCanvas());
+    calibFlat: function() {
+        this.setState({display:'flat-message'});
+
+        var keyHandler = (e) => {
+            if (e.keyCode === 32 /* space */) {
+                this.calibFlatScan();
+                $(document).off('keypress', keyHandler);
+            }
+        };
+
+        $(document).on('keypress', keyHandler);
     },
-    startMoundScan: function() {
-        this.setState({active:true});
+    calibMound: function() {
+        this.setState({display:'mound-message'});
+
+        var keyHandler = (e) => {
+            console.log(e.keyCode);
+            if (e.keyCode === 32 /* space bar */) {
+                this.calibMoundScan();
+                $(document).off('keypress', keyHandler);
+            }
+        };
+
+        $(document).on('keypress', keyHandler);
+    },
+    calibFlatScan: function() {
+        this.setState({display: 'scan'});
+        app.calibrationFlatScan(this.getCanvas());
+    },
+    calibMoundScan: function() {
+        var square = $(this.refs.square.getDOMNode()),
+            off = square.offset(),
+            width = square.width(),
+            height = square.height();
+
+        this.setState({display: 'scan'});
+        /* Pass in the screen coordinates of the square. */
+        app.calibrationMoundScan(this.getCanvas(), off.left, off.top, off.left + width, off.top + height);
+    },
+    moundScan: function() {
+        this.setState({display: 'scan'});
         app.moundScan(this.getCanvas());
     },
     render: function() {
-        return D.div({},
-            this.state.active ? D.div({className: 'canvas-container'}, D.canvas({id:this.id, ref:this.id})) : null
-        );
+        var d = this.state.display;
+
+        if (d === 'flat-message') {
+            return D.div({className: 'calib-container'},
+                D.div({className: 'message'}, 'Flatten the sand and press Space.')
+            );
+        } else if (d === 'mound-message') {
+            return D.div({className: 'calib-container'}, [
+                D.div({className: 'message'}, 'Make a mountain with its peak centered in the square below and press Space.'),
+                D.div({className: 'mound-square', ref: 'square'})
+            ]);
+        } else if (d === 'scan') {
+            return D.div({className: 'canvas-container'}, D.canvas({id:this.id, ref:this.id}, null));
+        } else {
+            return D.div();
+        }
     }
 });
 
@@ -172,7 +194,6 @@ var mainUI = React.createClass({
         return D.div({}, [
             tfMockUI(),
             leafletUI(),
-            calibrationUI(),
             scanUI(),
             errorMessageUI(),
             menuUI()

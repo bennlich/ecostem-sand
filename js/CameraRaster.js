@@ -61,8 +61,6 @@ export class CameraRaster extends Raster {
         var idx = Math.ceil(variances.length * 0.5);
         var middle = variances[idx];
 
-        console.log(variances, idx, middle);
-
         var x,y;
 
         for (x = 0; x < this.width; ++x) {
