@@ -116,7 +116,7 @@ export class App extends Evented {
     moundScan(canvas) {
         this.correspondence.moundScan(canvas, (diffRaster) => {
             this.updateScanElevation(diffRaster);
-            this.fire('sand-scan-done');
+            this.fire('mound-done');
         }, () => {
             this.fire('error', 'Could not load camera frame.');
         });

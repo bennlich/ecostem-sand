@@ -57,7 +57,7 @@ var menuUI = React.createClass({
         app.fire('flat-scan-start');
     },
     handleMountainScanClick: function() {
-        app.fire('mound-scan-start');
+        app.fire('mound-start');
     },
     handleCalibrate: function() {
         this.setState({calibrating: true});
@@ -92,7 +92,7 @@ var scanUI = React.createClass({
 //        app.on('calib-mound-done', () => this.setState({display:null}));
 
         app.on('mound-start', () => this.moundScan());
-        app.on('mound-done', () => this.setState({display:null}));
+//        app.on('mound-done', () => this.setState({display:null}));
 
         return { display: null };
     },

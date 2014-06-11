@@ -8,7 +8,7 @@ class ImageLoaderTestDummy {
     constructor() {
         this.imageLoader = new RealImageLoader();
 
-        this.dir = 'img/scantest-sand2';
+        this.dir = Config.dummyScanDir;
 
         this.init = 0;
         this.stage = 'before';
@@ -110,5 +110,4 @@ class RealImageLoader {
     }
 }
 
-export var ImageLoader = ImageLoaderTestDummy;
-//export var ImageLoader = RealImageLoader;
+export var ImageLoader = Config.useDummyServer ? ImageLoaderTestDummy : RealImageLoader;
