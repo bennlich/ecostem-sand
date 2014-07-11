@@ -5,22 +5,24 @@ import {PatchRenderer} from '../st-api/ModelingCore/PatchRenderer';
 export class ScanElevationModel extends BaseModel {
     constructor(xs, ys, geometry, modelPool) {
         super(xs, ys, geometry, modelPool);
-        this.init({elevation:0});
+        this.init([{ name: "elevation", type: "float4", value: 0 }]);
 
         this.min = 1000000;
         this.max = -1000000;
     }
     loadFromRaster(raster) {
         console.log(raster);
-        if (raster.width !== this.xSize || raster.height !== this.ySize) {
-            console.error('raster differs from model', raster.width, raster.height, this.xSize, this.ySize);
+        if (raster.width !== this.width || raster.height !== this.height) {
+            console.error('raster differs from model', raster.width, raster.height, this.width, this.height);
         }
-        for (var i = 0; i < this.xSize; ++i) {
-            for (var j = 0; j < this.ySize; ++j) {
-                var patch = raster.data[i][j];
-                var elev = Math.abs(patch.x)+Math.abs(patch.y);
 
-                this.world[i][j].elevation = elev;
+        for (var i = 0; i < this.width; ++i) {
+            for (var j = 0; j < this.height; ++j) {
+                var patch = raster.data[i][j];
+                var elev = patch.diffValue;
+
+                this.set('elevation', i, j, elev);
+                
                 if (elev < this.min) {
                     this.min = elev;
                 }
