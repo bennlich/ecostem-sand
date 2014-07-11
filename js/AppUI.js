@@ -6,11 +6,11 @@ import {App} from './App';
 var D = React.DOM;
 
 var tfMockUI = React.createClass({
-    render: function() {
-        return D.div({id: 'transfer-function-svg'});
-    },
     componentDidMount: function() {
         TransferFunctions.init();
+    },
+    render: function() {
+        return D.div({ id: 'transfer-function-svg' });
     }
 });
 
@@ -24,12 +24,13 @@ var leafletUI = React.createClass({
 });
 
 var menuUI = React.createClass({
-    getInitialState: function() {
+    componentDidMount: function() {
         app.on('calib-mound-done', () => this.setState({
             calibrating: false,
             calibrated: true
         }));
-
+    },
+    getInitialState: function() {
         return {
             startedAnimator: false,
             calibrating: false,
@@ -60,40 +61,44 @@ var menuUI = React.createClass({
         app.fire('mound-start');
     },
     handleCalibrate: function() {
-        this.setState({calibrating: true});
+        this.setState({ calibrating: true });
         app.fire('calib-start');
     },
     render: function() {
-        var startButton = D.button({onClick: this.handleStartClick}, 'Start');
-        var stopButton = D.button({onClick: this.handleStopClick}, 'Stop');
-        var calibButton = D.button({onClick: this.handleCalibrate}, 'Calibrate');
-
-        if (!this.state.calibrating) {
-            return D.div({className: 'menu'}, [
-                calibButton,
-                this.state.startedAnimator ? stopButton : startButton,
-                D.button({onClick: this.handleResetClick}, 'Reset'),
-                this.state.calibrated ? D.button({onClick: this.handleMountainScanClick}, 'Sand Scan') : null
-            ]);
-        } else {
+        if (this.state.calibrating)
             return D.div();
-        }
+
+        var animateButton = this.state.startedAnimator ?
+                D.button({ onClick: this.handleStopClick }, 'Stop') :
+                D.button({ onClick: this.handleStartClick }, 'Start'),
+            calibButton = D.button({ onClick: this.handleCalibrate }, 'Calibrate'),
+            resetButton = D.button({ onClick: this.handleResetClick }, 'Reset'),
+            sandScanButton = this.state.calibrated ?
+                D.button({onClick: this.handleMountainScanClick}, 'Sand Scan') : null;
+        
+        return D.div({ className: 'menu' }, [
+            calibButton,
+            animateButton,
+            resetButton,
+            sandScanButton
+        ]);
     }
 });
 
 var scanUI = React.createClass({
-    getInitialState: function() {
+    componentDidMount: function() {
         this.id = 'scan';
         this.width = Math.floor($(window).width());
         this.height = Math.floor($(window).height());
 
         app.on('calib-start', () => this.calibFlat());
         app.on('calib-flat-done', () => this.calibMound());
-//        app.on('calib-mound-done', () => this.setState({display:null}));
+        app.on('calib-mound-done', () => this.setState({ display: null }));
 
         app.on('mound-start', () => this.moundScan());
-//        app.on('mound-done', () => this.setState({display:null}));
-
+        app.on('mound-done', () => this.setState({ display: null }));
+    },
+    getInitialState: function() {
         return { display: null };
     },
     getCanvas: function() {
@@ -107,7 +112,7 @@ var scanUI = React.createClass({
         return canvas;
     },
     calibFlat: function() {
-        this.setState({display:'flat-message'});
+        this.setState({ display: 'flat-message' });
 
         var keyHandler = (e) => {
             if (e.keyCode === 32 /* space */) {
@@ -119,7 +124,7 @@ var scanUI = React.createClass({
         $(document).on('keypress', keyHandler);
     },
     calibMound: function() {
-        this.setState({display:'mound-message'});
+        this.setState({ display: 'mound-message' });
 
         var keyHandler = (e) => {
             console.log(e.keyCode);
@@ -132,7 +137,7 @@ var scanUI = React.createClass({
         $(document).on('keypress', keyHandler);
     },
     calibFlatScan: function() {
-        this.setState({display: 'scan'});
+        this.setState({ display: 'scan' });
         app.calibrationFlatScan(this.getCanvas());
     },
     calibMoundScan: function() {
@@ -141,51 +146,53 @@ var scanUI = React.createClass({
             width = square.width(),
             height = square.height();
 
-        this.setState({display: 'scan'});
+        this.setState({ display: 'scan' });
         /* Pass in the screen coordinates of the square. */
         app.calibrationMoundScan(this.getCanvas(), off.left, off.top, off.left + width, off.top + height);
     },
     moundScan: function() {
-        this.setState({display: 'scan'});
+        this.setState({ display: 'scan' });
         app.moundScan(this.getCanvas());
     },
     render: function() {
-        var d = this.state.display;
-
-        if (d === 'flat-message') {
-            return D.div({className: 'calib-container'},
-                D.div({className: 'message'}, 'Flatten the sand and press Space.')
-            );
-        } else if (d === 'mound-message') {
-            return D.div({className: 'calib-container'}, [
-                D.div({className: 'message'}, 'Make a mountain with its peak centered in the square below and press Space.'),
-                D.div({className: 'mound-square', ref: 'square'})
-            ]);
-        } else if (d === 'scan') {
-            return D.div({className: 'canvas-container'}, D.canvas({id:this.id, ref:this.id}, null));
-        } else {
-            return D.div();
+        switch (this.state.display) {
+            case 'flat-message':
+                return D.div({ className: 'calib-container' },
+                    D.div({ className: 'message' }, 'Flatten the sand and press Space.')
+                );
+            case 'mound-message':
+                return D.div({className: 'calib-container'}, [
+                    D.div({ className: 'message' }, 'Make a mountain with its peak centered in the square below and press Space.'),
+                    D.div({ className: 'mound-square', ref: 'square' })
+                ]);
+            case 'scan':
+                return D.div({ className: 'canvas-container' },
+                    D.canvas({ id: this.id, ref: this.id })
+                );
+            default:
+                return D.div();
         }
     }
 });
 
 var errorMessageUI = React.createClass({
+    componentDidMount: function() {
+        app.on('error', (msg) => this.setState({ error: msg }));
+    },
     getInitialState: function() {
-        app.on('error', (msg) => this.setState({error: msg}));
-        return {error: null};
+        return { error: null };
     },
     handleClick: function() {
-        this.setState({error:null});
+        this.setState({ error: null });
     },
     render: function() {
-        if (this.state.error) {
-            return D.div({className: 'error'}, [
-                this.state.error,
-                D.button({onClick: this.handleClick}, 'OK')
-            ]);
-        } else {
+        if (!this.state.error)
             return D.div();
-        }
+        
+        return D.div({ className: 'error' }, [
+            this.state.error,
+            D.button({ onClick: this.handleClick }, 'OK')
+        ]);
     }
 });
 
