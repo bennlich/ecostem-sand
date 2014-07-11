@@ -44,6 +44,6 @@ export class ScanElevationPatchRenderer extends PatchRenderer {
     }
     color(value) {
         var variance = this.model.max - this.model.min;
-        return Gradient.hsvToRgb((1-value/variance)*0.8, 1, 1);
+        return Gradient.hsvToRgb(0.8*(1-(value-this.model.min)/variance), 1, 1);
     }
 }

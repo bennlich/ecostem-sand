@@ -128,7 +128,8 @@ export class App extends Evented {
     }
 
     calibrationMoundScan(canvas, sx0, sy0, sx1, sy1) {
-        this.correspondence.calibrationMoundScan(canvas, sx0, sy0, sx1, sy1, () => {
+        this.correspondence.calibrationMoundScan(canvas, sx0, sy0, sx1, sy1, (diffRaster) => {
+            this.updateScanElevation(diffRaster);
             this.fire('calib-mound-done');
         }, () => {
             this.fire('error', 'Could not load camera frame.');
