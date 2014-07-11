@@ -80,7 +80,7 @@ export class App extends Evented {
     }
 
     addModelLayer(obj) {
-        this.modelPool.models[obj.name] = obj;
+        this.modelPool.addModel(obj.name, obj);
         this.map.toggleLayer({
             on: false,
             leafletLayer: obj.renderer.makeLayer({zIndex: 19, opacity: 0.85})
