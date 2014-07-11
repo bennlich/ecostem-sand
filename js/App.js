@@ -57,6 +57,28 @@ export class App extends Evented {
         //AnySurface.Laser.turnOffVMouse();
     }
 
+    paintXY(x, y) {
+        var brushSize = 15, waterQuantity = 20;
+        var topLeft = map.leafletMap.containerPointToLatLng([
+                x - brushSize,
+                y - brushSize
+            ]),
+            bottomRight = map.leafletMap.containerPointToLatLng([
+                x + brushSize,
+                y + brushSize
+            ]);
+
+        var crs = this.modelPool.crs,
+            curModel = this.waterModel.dataModel,
+            modelTopLeft = crs.commonCoordToModelCoord(topLeft, curModel),
+            modelBottomRight = crs.commonCoordToModelCoord(bottomRight, curModel);
+
+        var width = modelBottomRight.x - modelTopLeft.x,
+            height = modelBottomRight.y - modelTopLeft.y;
+
+        curModel.putData(modelTopLeft.x, modelTopLeft.y, width, height, { volume: waterQuantity });
+    }
+
     addModelLayer(obj) {
         this.modelPool.models[obj.name] = obj;
         this.map.toggleLayer({

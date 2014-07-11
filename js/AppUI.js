@@ -14,12 +14,48 @@ var tfMockUI = React.createClass({
     }
 });
 
-var leafletUI = React.createClass({
-    render: function() {
-        return D.div({id: 'leaflet-map'});
+var paintingUI = React.createClass({
+    getInitialState: function() {
+        return {
+            painting: true
+        };
     },
     componentDidMount: function() {
+        app.on('painting-start', () => {
+            this.setState({ painting: true });
+        });
+        app.on('painting-stop', () => {
+            this.setState({ painting: false });
+        });
+    },
+    paintStart: function(e) {
+        this.paint(e);
+        this.getDOMNode().addEventListener('mousemove', this.paint);
+        this.getDOMNode().addEventListener('mouseup', this.paintStop);
+    },
+    paintStop: function() {
+        this.getDOMNode().removeEventListener('mousemove', this.paint);
+    },
+    paint: function(e) {
+        app.paintXY(e.clientX, e.clientY);
+    },
+    render: function() {
+        if (!this.state.painting)
+            return D.div();
+
+        return D.div({
+            className: 'cover',
+            onMouseDown: this.paintStart
+        });
+    } 
+});
+
+var leafletUI = React.createClass({
+    componentDidMount: function() {
         app.initialize('leaflet-map');
+    },
+    render: function() {
+        return D.div({ id: 'leaflet-map' });
     }
 });
 
@@ -200,6 +236,7 @@ var mainUI = React.createClass({
     render: function() {
         return D.div({}, [
             tfMockUI(),
+            paintingUI(),
             leafletUI(),
             scanUI(),
             errorMessageUI(),
