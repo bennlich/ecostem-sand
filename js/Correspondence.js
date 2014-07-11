@@ -24,8 +24,9 @@ export class Correspondence {
     calibrationFlatScan(screenCanvas, callback, errorCallback) {
         var cb = (outputRaster) => {
             this.flatRaster = outputRaster;
+
             if (typeof callback === 'function') {
-                callback();
+                callback(this.flatRaster);
             }
         };
         this.doScan(screenCanvas, cb, errorCallback);
@@ -56,7 +57,7 @@ export class Correspondence {
             biggerDiff.paintDiff(screenCanvas);
 
             if (typeof callback === 'function') {
-                callback();
+                callback(this.diffRaster);
             }
         };
 
@@ -72,6 +73,10 @@ export class Correspondence {
 
             var biggerDiff = this.diffRaster.upsample(screenCanvas.width/3, screenCanvas.height/3);
             biggerDiff.paintDiff(screenCanvas);
+
+            if (typeof callback === 'function') {
+                callback(this.diffRaster);
+            }
         };
         this.doScan(screenCanvas, cb, errorCallback);
     }
@@ -84,8 +89,9 @@ export class Correspondence {
             var sctx = screenCanvas.getContext('2d');
             sctx.drawImage(canvas, 0, 0);
 
-            if (typeof callback === 'function')
+            if (typeof callback === 'function') {
                 callback(outputRaster);
+            }
         };
         this.stripeScan.scan(screenCanvas, cb, errorCallback);
     }
